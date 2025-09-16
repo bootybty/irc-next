@@ -204,14 +204,22 @@ export const useChat = (
   };
 
   const loadChannelMessages = useCallback(async (channelId: string) => {
-    const { data: messagesResult } = await supabase
+    console.log(`📥 Loading messages for channel: ${channelId}`);
+    
+    const { data: messagesResult, error } = await supabase
       .from('messages')
       .select('*')
       .eq('channel_id', channelId)
       .order('created_at', { ascending: true })
-      .limit(50);
+      .limit(100);
+
+    if (error) {
+      console.error(`❌ Error loading messages:`, error);
+      return;
+    }
 
     if (messagesResult) {
+      console.log(`📥 Loaded ${messagesResult.length} messages for channel ${channelId}`);
       const formattedMessages = messagesResult.map(msg => ({
         id: msg.id,
         username: msg.username,
@@ -220,6 +228,9 @@ export const useChat = (
         channel: channelId
       }));
       setMessages(formattedMessages);
+      console.log(`✅ Messages set in state: ${formattedMessages.length}`);
+    } else {
+      console.log(`📥 No messages found for channel ${channelId}`);
     }
   }, []);
 

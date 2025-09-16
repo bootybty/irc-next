@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useTheme, themes } from '@/components/ThemeProvider';
 import type { ChannelCategory, ChannelMember, ChannelRole } from '@/lib/supabase';
 
 // Define universal channels outside component to prevent re-creation
 const UNIVERSAL_CHANNELS = ['global', 'general', 'random', 'tech', 'gaming', 'music', 'news', 'help', 'projects', 'feedback'];
 
 export const useChannel = (userId: string, username: string, authUser: any) => {
+  const { theme } = useTheme();
+  const currentTheme = themes[theme];
   const searchParams = useSearchParams();
   const [currentChannel, setCurrentChannel] = useState('');
   const [categories, setCategories] = useState<ChannelCategory[]>([]);
@@ -16,7 +19,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
   const [userRole, setUserRole] = useState<string>('member');
   const [userPermissions, setUserPermissions] = useState<Record<string, boolean>>({});
   const [currentTopic, setCurrentTopic] = useState<string>('');
-  const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
+  const [currentMotd, setCurrentMotd] = useState<string>('');
   const [joinStatus, setJoinStatus] = useState<'joining' | 'success' | 'failed' | null>(null);
   const [joiningChannelName, setJoiningChannelName] = useState<string>('');
   const [unreadMentions, setUnreadMentions] = useState<Record<string, number>>({});
@@ -305,7 +308,15 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
         if (channelData?.motd) {
           setCurrentMotd(channelData.motd.toUpperCase());
         } else {
-          setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
+          // Check if it's a universal channel
+          const channelName = categories.flatMap(cat => cat.channels || [])
+            .find(ch => ch.id === channelId)?.name;
+          
+          if (channelName && UNIVERSAL_CHANNELS.includes(channelName)) {
+            setCurrentMotd(''); // No MOTD for universal channels
+          } else {
+            setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
+          }
         }
         
         if (channelData?.topic) {
@@ -353,15 +364,16 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
     return 'unknown-channel';
   };
 
+
   const getRoleColor = (member: ChannelMember) => {
     if (member.channel_role) {
       return member.channel_role.color;
     }
     switch (member.role) {
-      case 'owner': return 'text-red-400';
+      case 'owner': return currentTheme.roleOwner;
       case 'moderator':
-      case 'admin': return 'text-yellow-400'; 
-      default: return 'text-green-400';
+      case 'admin': return currentTheme.roleModerator; 
+      default: return currentTheme.roleDefault;
     }
   };
 

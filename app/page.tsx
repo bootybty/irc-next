@@ -4,6 +4,8 @@ import { useEffect, useCallback, Suspense } from 'react';
 import AuthModal from '@/components/AuthModal';
 import CreateCategoryModal from '@/components/CreateCategoryModal';
 import CreateChannelModal from '@/components/CreateChannelModal';
+import ThemeSelector from '@/components/ThemeSelector';
+import { useTheme, themes } from '@/components/ThemeProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useChannel } from '@/hooks/useChannel';
 import { useChat } from '@/hooks/useChat';
@@ -12,6 +14,8 @@ import { useUsers } from '@/hooks/useUsers';
 import { useUI } from '@/hooks/useUI';
 
 function HomeContent() {
+  const { theme } = useTheme();
+  const currentTheme = themes[theme];
   const auth = useAuth();
   const ui = useUI();
   
@@ -302,9 +306,9 @@ function HomeContent() {
   }
 
   return (
-    <div className="h-screen w-screen bg-black text-green-400 font-mono text-xs sm:text-sm overflow-hidden fixed inset-0 flex flex-col">
+    <div className={`h-screen w-screen ${currentTheme.background} ${currentTheme.text} font-mono text-xs sm:text-sm overflow-hidden fixed inset-0 flex flex-col`}>
       {/* Terminal Title */}
-      <div className="border-b border-green-400 p-2 flex-shrink-0">
+      <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
         {/* Header actions */}
         <div className="flex justify-between items-center">
           <div className="flex gap-2">
@@ -312,14 +316,14 @@ function HomeContent() {
               <>
                 <button 
                   onClick={ui.handleCreateCategory}
-                  className="text-green-300 hover:text-yellow-400"
+                  className={`${currentTheme.accent} ${currentTheme.button}`}
                   title="Create Category"
                 >
                   [+CAT]
                 </button>
                 <button 
                   onClick={() => ui.handleCreateChannel()}
-                  className="text-green-300 hover:text-yellow-400"
+                  className={`${currentTheme.accent} ${currentTheme.button}`}
                   title="Create Channel"
                 >
                   [+CH]
@@ -342,7 +346,7 @@ function HomeContent() {
             ) : (
               <button 
                 onClick={() => auth.setShowAuthModal(true)}
-                className="text-green-400 hover:text-green-300"
+                className={`${currentTheme.text} hover:text-green-300`}
               >
                 [LOGIN]
               </button>
@@ -358,19 +362,19 @@ function HomeContent() {
           >
             [CHANNELS]
           </button>
-          <div className="text-center text-green-300">IRC CHAT</div>
+          <div className={`text-center ${currentTheme.accent}`}>IRC CHAT</div>
           <div className="flex gap-2">
             {!auth.authUser && (
               <button 
                 onClick={() => auth.setShowAuthModal(true)}
-                className="text-green-400 hover:text-green-300"
+                className={`${currentTheme.text} hover:text-green-300`}
               >
                 [LOGIN]
               </button>
             )}
             <button 
               onClick={() => ui.setShowUsers(!ui.showUsers)}
-              className="text-green-300 hover:text-yellow-400"
+              className={`${currentTheme.accent} ${currentTheme.button}`}
             >
               [USERS]
             </button>
@@ -382,14 +386,14 @@ function HomeContent() {
         {/* Mobile Sidebar Overlay */}
         {ui.showSidebar && (
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowSidebar(false)}>
-            <div className="w-64 h-full bg-black border-r border-green-400 p-4" onClick={(e) => e.stopPropagation()}>
+            <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} p-4`} onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-4">
-                <div className="text-green-300">CHANNELS:</div>
-                <button onClick={() => ui.setShowSidebar(false)} className="text-red-400">[X]</button>
+                <div className={currentTheme.accent}>CHANNELS:</div>
+                <button onClick={() => ui.setShowSidebar(false)} className={currentTheme.error}>[X]</button>
               </div>
               <div className="ml-2">
                 {channel.categories.length === 0 ? (
-                  <div className="text-gray-400 italic">No categories available</div>
+                  <div className={`${currentTheme.muted} italic`}>No categories available</div>
                 ) : (
                   channel.categories.map(category => {
                     if (category.id === 'universal') {
@@ -402,8 +406,8 @@ function HomeContent() {
                           }}
                           className={`cursor-pointer mb-2 ${
                             channel.currentChannel === ch.id
-                              ? 'text-yellow-400'
-                              : 'text-cyan-400 hover:text-yellow-400'
+                              ? currentTheme.highlight
+                              : `${currentTheme.cyan} ${currentTheme.button}`
                           }`}
                         >
                           <span className="flex items-center justify-between">
@@ -431,8 +435,8 @@ function HomeContent() {
                           }}
                           className={`cursor-pointer mb-1 ${
                             channel.currentChannel === ch.id
-                              ? 'text-yellow-400'
-                              : 'text-green-400 hover:text-yellow-400'
+                              ? currentTheme.highlight
+                              : `${currentTheme.text} ${currentTheme.button}`
                           }`}
                         >
                           <span className="flex items-center justify-between">
@@ -454,13 +458,13 @@ function HomeContent() {
                       <div key={category.id}>
                         <div 
                           onClick={() => channel.toggleCategory(category.id)}
-                          className="cursor-pointer text-green-300 hover:text-yellow-400 mb-1"
+                          className={`cursor-pointer ${currentTheme.accent} ${currentTheme.button} mb-1`}
                         >
                           {channel.expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
                         </div>
                         {channel.expandedCategories.has(category.id) && (
                           category.channels?.length === 0 ? (
-                            <div className="text-gray-400 italic ml-4">No channels in category</div>
+                            <div className={`${currentTheme.muted} italic ml-4`}>No channels in category</div>
                           ) : (
                             category.channels?.map(ch => (
                               <div 
@@ -471,8 +475,8 @@ function HomeContent() {
                                 }}
                                 className={`cursor-pointer ml-4 ${
                                   channel.currentChannel === ch.id
-                                    ? 'text-yellow-400'
-                                    : 'text-green-400 hover:text-yellow-400'
+                                    ? currentTheme.highlight
+                                    : `${currentTheme.text} ${currentTheme.button}`
                                 }`}
                               >
                                 <span className="flex items-center justify-between">
@@ -500,12 +504,12 @@ function HomeContent() {
         )}
 
         {/* Desktop Channel List */}
-        <div className="hidden sm:block w-64 lg:w-72 border-r border-green-400 p-4 flex-shrink-0 overflow-auto">
+        <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} p-4 flex-shrink-0 overflow-auto`}>
           <div className="mb-4">
-            <div className="text-green-300">CHANNELS:</div>
+            <div className={currentTheme.accent}>CHANNELS:</div>
             <div className="ml-2">
               {channel.categories.length === 0 ? (
-                <div className="text-gray-400 italic">No categories available</div>
+                <div className={`${currentTheme.muted} italic`}>No categories available</div>
               ) : (
                 channel.categories.map(category => {
                   if (category.id === 'universal') {
@@ -515,8 +519,8 @@ function HomeContent() {
                         onClick={() => handleChannelSwitch(ch.id)}
                         className={`cursor-pointer mb-2 ${
                           channel.currentChannel === ch.id
-                            ? 'text-yellow-400'
-                            : 'text-cyan-400 hover:text-yellow-400'
+                            ? currentTheme.highlight
+                            : `${currentTheme.cyan} ${currentTheme.button}`
                         }`}
                       >
                         <span className="flex items-center justify-between">
@@ -541,8 +545,8 @@ function HomeContent() {
                         onClick={() => handleChannelSwitch(ch.id)}
                         className={`cursor-pointer mb-1 ${
                           channel.currentChannel === ch.id
-                            ? 'text-yellow-400'
-                            : 'text-green-400 hover:text-yellow-400'
+                            ? currentTheme.highlight
+                            : `${currentTheme.text} ${currentTheme.button}`
                         }`}
                       >
                         <span className="flex items-center justify-between">
@@ -565,7 +569,7 @@ function HomeContent() {
                       <div className="flex justify-between items-center mb-1">
                         <div 
                           onClick={() => channel.toggleCategory(category.id)}
-                          className="cursor-pointer text-green-300 hover:text-yellow-400 font-medium flex-1"
+                          className={`cursor-pointer ${currentTheme.accent} ${currentTheme.button} font-medium flex-1`}
                         >
                           {channel.expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
                         </div>
@@ -580,8 +584,8 @@ function HomeContent() {
                               onClick={() => handleChannelSwitch(ch.id)}
                               className={`cursor-pointer ml-4 ${
                                 channel.currentChannel === ch.id
-                                  ? 'text-yellow-400'
-                                  : 'text-green-400 hover:text-yellow-400'
+                                  ? currentTheme.highlight
+                                  : `${currentTheme.text} ${currentTheme.button}`
                               }`}
                             >
                               <span className="flex items-center justify-between">
@@ -610,7 +614,7 @@ function HomeContent() {
         {/* Main Terminal */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <div className="border-b border-green-400 p-2">
+          <div className={`border-b ${currentTheme.border} p-2`}>
             <div className="text-center hidden sm:block">
               === CONNECTED TO #{channel.getCurrentChannelName().toUpperCase()} ===
             </div>
@@ -627,8 +631,8 @@ function HomeContent() {
             <div className="space-y-1">
               {channel.joinStatus && channel.joiningChannelName && (
                 <div className={`hidden sm:block ${
-                  channel.joinStatus === 'joining' ? 'text-yellow-400' :
-                  channel.joinStatus === 'success' ? 'text-green-400' : 'text-red-400'
+                  channel.joinStatus === 'joining' ? currentTheme.highlight :
+                  channel.joinStatus === 'success' ? currentTheme.success : currentTheme.error
                 }`}>
                   *** {
                     channel.joinStatus === 'joining' ? `JOINING #${channel.joiningChannelName.toUpperCase()}...` :
@@ -638,11 +642,13 @@ function HomeContent() {
                 </div>
               )}
               {channel.currentTopic && (
-                <div className="hidden sm:block text-cyan-400">*** TOPIC: {channel.currentTopic.toUpperCase()} ***</div>
+                <div className={`hidden sm:block ${currentTheme.cyan}`}>*** TOPIC: {channel.currentTopic.toUpperCase()} ***</div>
               )}
-              <div className="hidden sm:block text-purple-400">*** MOTD: {channel.currentMotd} ***</div>
+              {channel.currentMotd && (
+                <div className={`hidden sm:block ${currentTheme.purple}`}>*** MOTD: {channel.currentMotd} ***</div>
+              )}
               {!auth.authUser && (
-                <div className="text-yellow-400">*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
+                <div className={currentTheme.highlight}>*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
               )}
               {[...chat.messages, ...chat.localMessages].sort((a, b) => 
                 new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -650,7 +656,7 @@ function HomeContent() {
                 const time = new Date(message.timestamp).toLocaleTimeString('en-US', { hour12: false });
                 const userColor = users.getUserRoleColor(message.username);
                 return (
-                  <div key={message.id} className="text-green-400 break-words">
+                  <div key={message.id} className={`${currentTheme.text} break-words`}>
                     <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {formatMessageContent(message.content)}
                   </div>
                 );
@@ -660,7 +666,7 @@ function HomeContent() {
 
           {/* Command Autocomplete */}
           {auth.authUser && commands.showCommandSuggestions && (
-            <div className="border-t border-green-400 bg-black max-h-48 overflow-y-auto command-suggestions" style={{
+            <div className={`border-t ${currentTheme.border} ${currentTheme.background} max-h-48 overflow-y-auto command-suggestions`} style={{
               scrollbarWidth: 'thin',
               scrollbarColor: '#4b5563 #1f2937'
             }}>
@@ -668,20 +674,20 @@ function HomeContent() {
                 <div
                   key={suggestion.command}
                   onClick={() => selectSuggestion(index)}
-                  className={`p-2 cursor-pointer border-b border-green-600 ${
+                  className={`p-2 cursor-pointer border-b ${currentTheme.border} ${
                     index === commands.selectedSuggestion 
-                      ? 'bg-gray-700 text-yellow-400' 
-                      : 'text-green-400 hover:bg-gray-800'
+                      ? `bg-gray-700 ${currentTheme.highlight}` 
+                      : `${currentTheme.text} hover:bg-gray-800`
                   }`}
                 >
                   <div className="font-mono text-xs">
-                    <span className="text-yellow-300">
+                    <span className={currentTheme.highlight}>
                       {suggestion.command === '__help_only__' ? 'Type reason...' : `/${suggestion.command}`}
                     </span>
-                    <div className="text-gray-400 text-xs mt-1">
+                    <div className={`${currentTheme.muted} text-xs mt-1`}>
                       {suggestion.description}
                       {suggestion.requiresRole && (
-                        <span className="ml-2 text-red-400">
+                        <span className={`ml-2 ${currentTheme.error}`}>
                           ({suggestion.requiresRole}+ only)
                         </span>
                       )}
@@ -689,23 +695,23 @@ function HomeContent() {
                   </div>
                 </div>
               ))}
-              <div className="p-1 text-xs text-gray-500 text-center border-b border-green-600">
+              <div className={`p-1 text-xs ${currentTheme.muted} text-center border-b ${currentTheme.border}`}>
                 ↑↓ Navigate • TAB/ENTER Select • ESC Cancel
               </div>
             </div>
           )}
 
           {/* Input Line */}
-          <div className="border-t border-green-400 p-2">
+          <div className={`border-t ${currentTheme.border} p-2`}>
             {auth.authUser ? (
               <div className="flex items-center">
-                <span className="text-green-300 hidden sm:inline">[#{channel.getCurrentChannelName().toUpperCase()}]&gt; </span>
-                <span className="text-green-300 sm:hidden">&gt; </span>
+                <span className={`${currentTheme.accent} hidden sm:inline`}>[#{channel.getCurrentChannelName().toUpperCase()}]&gt; </span>
+                <span className={`${currentTheme.accent} sm:hidden`}>&gt; </span>
                 <textarea 
                   value={ui.inputMessage}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600 resize-none overflow-y-auto flex items-center"
+                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-y-auto flex items-center`}
                   placeholder={channel.userRole === 'owner' || channel.userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
                   rows={1}
                   style={{
@@ -727,7 +733,7 @@ function HomeContent() {
               <div className="flex justify-center">
                 <button 
                   onClick={() => auth.setShowAuthModal(true)}
-                  className="text-yellow-400 hover:text-yellow-300 text-center"
+                  className={`${currentTheme.highlight} hover:text-yellow-300 text-center`}
                 >
                   *** LOGIN TO CHAT ***
                 </button>
@@ -739,7 +745,7 @@ function HomeContent() {
         {/* Mobile Users Overlay */}
         {ui.showUsers && (
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowUsers(false)}>
-            <div className="w-48 h-full bg-black border-l border-green-400 p-4 ml-auto" onClick={(e) => e.stopPropagation()}>
+            <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} p-4 ml-auto`} onClick={(e) => e.stopPropagation()}>
               {(() => {
                 const displayUsers = users.displayUsers;
                 const userCount = displayUsers.length;
@@ -747,15 +753,15 @@ function HomeContent() {
                 return (
                   <>
                     <div className="flex justify-between items-center mb-4">
-                      <div className="text-green-300">
+                      <div className={currentTheme.accent}>
                         USERS ({userCount}):
                       </div>
-                      <button onClick={() => ui.setShowUsers(false)} className="text-red-400">[X]</button>
+                      <button onClick={() => ui.setShowUsers(false)} className={currentTheme.error}>[X]</button>
                     </div>
                     <div className="space-y-1">
                       {displayUsers.map((user, index) => {
                         const member = channel.channelMembers.find(m => m.user_id === user.id);
-                        const roleColor = member ? channel.getRoleColor(member) : 'text-green-400';
+                        const roleColor = member ? channel.getRoleColor(member) : currentTheme.text;
                         
                         return (
                           <div key={`mobile-user-${user.id}-${index}`} className={roleColor}>
@@ -772,7 +778,7 @@ function HomeContent() {
         )}
 
         {/* Desktop User List */}
-        <div className="hidden lg:block w-64 lg:w-72 border-l border-green-400 p-4 flex-shrink-0 overflow-auto user-list" style={{
+        <div className={`hidden lg:block w-64 lg:w-72 border-l ${currentTheme.border} p-4 flex-shrink-0 overflow-auto user-list`} style={{
           scrollbarWidth: 'thin',
           scrollbarColor: '#1f2937 #000000'
         }}>
@@ -782,13 +788,13 @@ function HomeContent() {
             
             return (
               <>
-                <div className="text-green-300 mb-4">
+                <div className={`${currentTheme.accent} mb-4`}>
                   USERS ({userCount}):
                 </div>
                 <div className="space-y-1">
                   {displayUsers.map((user, index) => {
                     const member = channel.channelMembers.find(m => m.user_id === user.id);
-                    const roleColor = member ? channel.getRoleColor(member) : 'text-green-400';
+                    const roleColor = member ? channel.getRoleColor(member) : currentTheme.text;
                     
                     return (
                       <div key={`desktop-user-${user.id}-${index}`} className={roleColor}>
@@ -804,8 +810,9 @@ function HomeContent() {
       </div>
 
       {/* Bottom Status */}
-      <div className="border-t border-green-400 p-2 flex justify-end flex-shrink-0">
-        <div className="text-xs">
+      <div className={`border-t ${currentTheme.border} p-2 flex justify-between items-center flex-shrink-0`}>
+        <ThemeSelector />
+        <div className="text-xs font-mono">
           {chat.connected ? 'CONNECTED' : 'DISCONNECTED'}
         </div>
       </div>
@@ -830,15 +837,15 @@ function HomeContent() {
       {/* Email Confirmation Popup */}
       {auth.emailConfirmed && (
         <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-          <div className="bg-black border border-green-400 p-6 max-w-md w-full mx-4">
-            <div className="text-green-400 font-mono text-sm text-center">
-              <div className="text-green-300 mb-4">
+          <div className={`${currentTheme.modal} ${currentTheme.border} border p-6 max-w-md w-full mx-4`}>
+            <div className={`${currentTheme.text} font-mono text-sm text-center`}>
+              <div className={`${currentTheme.accent} mb-4`}>
                 === EMAIL CONFIRMED ===
               </div>
-              <div className="text-green-400 mb-4">
+              <div className={`${currentTheme.text} mb-4`}>
                 YOUR EMAIL HAS BEEN SUCCESSFULLY CONFIRMED!
               </div>
-              <div className="text-gray-400 mb-6 text-xs">
+              <div className={`${currentTheme.muted} mb-6 text-xs`}>
                 PLEASE LOG IN TO CONTINUE
               </div>
               <button
@@ -846,7 +853,7 @@ function HomeContent() {
                   auth.setEmailConfirmed(false);
                   auth.setShowAuthModal(true);
                 }}
-                className="w-full bg-green-400 text-black p-2 hover:bg-yellow-400"
+                className={`w-full bg-green-400 text-black p-2 ${currentTheme.button}`}
               >
                 CONTINUE TO LOGIN
               </button>

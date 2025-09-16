@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTheme, themes } from '@/components/ThemeProvider';
 
 interface User {
   id: string;
@@ -22,6 +23,8 @@ export const useUsers = (
   channelMembers: ChannelMember[],
   username: string
 ) => {
+  const { theme } = useTheme();
+  const currentTheme = themes[theme];
   const getUserRoleColor = (targetUsername: string) => {
     const member = channelMembers.find(m => m.username.toLowerCase() === targetUsername.toLowerCase());
     if (member) {
@@ -29,10 +32,12 @@ export const useUsers = (
     }
     
     if (channelMembers.length === 0) {
-      return 'text-gray-400';
+      return currentTheme.muted;
     }
     
-    const userColors = ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
+    const userColors = theme === 'light' 
+      ? ['text-yellow-600', 'text-cyan-700', 'text-purple-700', 'text-red-600', 'text-orange-600', 'text-blue-600']
+      : ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
     const colorIndex = targetUsername.charCodeAt(0) % userColors.length;
     return userColors[colorIndex];
   };
@@ -42,10 +47,10 @@ export const useUsers = (
       return member.channel_role.color;
     }
     switch (member.role) {
-      case 'owner': return 'text-red-400';
+      case 'owner': return currentTheme.roleOwner;
       case 'moderator':
-      case 'admin': return 'text-yellow-400'; 
-      default: return 'text-green-400';
+      case 'admin': return currentTheme.roleModerator; 
+      default: return currentTheme.roleDefault;
     }
   };
 
@@ -54,10 +59,10 @@ export const useUsers = (
       const member = channelMembers.find(m => m.user_id === user.id);
       return {
         ...user,
-        roleColor: member ? getRoleColor(member) : 'text-green-400'
+        roleColor: member ? getRoleColor(member) : currentTheme.roleDefault
       };
     });
-  }, [users, channelMembers]);
+  }, [users, channelMembers, theme]);
 
   return {
     displayUsers,

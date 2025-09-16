@@ -78,3 +78,21 @@ textarea::-webkit-scrollbar-thumb:hover {
 .chat-area::-webkit-scrollbar-thumb:hover {
   background: #374151;
 }
+
+/* Custom scrollbar for user list */
+.user-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.user-list::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+.user-list::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.user-list::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}

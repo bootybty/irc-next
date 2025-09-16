@@ -824,6 +824,14 @@ export default function Home() {
 
       // Add message to local state immediately for sender
       setMessages(prev => [...prev, message]);
+      
+      // Auto-scroll to bottom after message is added
+      setTimeout(() => {
+        const chatArea = document.querySelector('.chat-area');
+        if (chatArea) {
+          chatArea.scrollTop = chatArea.scrollHeight;
+        }
+      }, 0);
 
       // Send via broadcast for instant delivery to others
       console.log('📤 Sending broadcast message:', message);
@@ -846,6 +854,15 @@ export default function Home() {
         });
 
       setInputMessage('');
+      
+      // Reset textarea height
+      setTimeout(() => {
+        const textarea = document.querySelector('textarea');
+        if (textarea) {
+          textarea.style.height = 'auto';
+          textarea.style.height = '1.25rem';
+        }
+      }, 0);
     }
   };
 
@@ -876,13 +893,13 @@ export default function Home() {
       setMessages(formattedMessages);
     }
     
-    // All users fetch channel members for role colors
-    await fetchChannelMembers(channelId);
-    
     // Only authenticated users join as members and track presence
     if (authUser) {
       await joinChannelAsMember(channelId);
     }
+    
+    // All users fetch channel members for role colors (after joining for authenticated users)
+    await fetchChannelMembers(channelId);
     
     // All users (including lurkers) can join realtime channel for messages
     await joinChannel(serverId, channelId);
@@ -932,7 +949,7 @@ export default function Home() {
   };
 
   const fetchChannelMembers = async (channelId: string) => {
-    if (!authUser) return;
+    // Fetch channel members for all users (including lurkers) to get role colors
 
     // Fetch channel roles
     const { data: roles } = await supabase
@@ -1031,6 +1048,11 @@ export default function Home() {
     if (member) {
       console.log(`🎨 Role color for ${username}: ${getRoleColor(member)} (from member data)`);
       return getRoleColor(member);
+    }
+    
+    // If we haven't loaded channel members yet, return a loading state
+    if (channelMembers.length === 0) {
+      return 'text-gray-400'; // Neutral color while loading
     }
     
     // Always use consistent fallback colors (not loading-based)
@@ -1296,26 +1318,49 @@ export default function Home() {
     <div className="h-screen w-screen bg-black text-green-400 font-mono text-xs sm:text-sm overflow-hidden fixed inset-0 flex flex-col">
       {/* Terminal Title */}
       <div className="border-b border-green-400 p-2 flex-shrink-0">
-        {/* Auth section */}
-        <div className="flex justify-end gap-2">
-          {authUser ? (
-            <>
-              <span className="text-yellow-400">{username.toUpperCase()}</span>
+        {/* Header actions */}
+        <div className="flex justify-between items-center">
+          <div className="flex gap-2">
+            {authUser && (
+              <>
+                <button 
+                  onClick={handleCreateCategory}
+                  className="text-green-300 hover:text-yellow-400"
+                  title="Create Category"
+                >
+                  [+CAT]
+                </button>
+                <button 
+                  onClick={() => handleCreateChannel()}
+                  className="text-green-300 hover:text-yellow-400"
+                  title="Create Channel"
+                >
+                  [+CH]
+                </button>
+              </>
+            )}
+          </div>
+          
+          <div className="flex gap-2">
+            {authUser ? (
+              <>
+                <span className="text-yellow-400">{username.toUpperCase()}</span>
+                <button 
+                  onClick={handleLogout}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  [LOGOUT]
+                </button>
+              </>
+            ) : (
               <button 
-                onClick={handleLogout}
-                className="text-red-400 hover:text-red-300"
+                onClick={() => setShowAuthModal(true)}
+                className="text-green-400 hover:text-green-300"
               >
-                [LOGOUT]
+                [LOGIN]
               </button>
-            </>
-          ) : (
-            <button 
-              onClick={() => setShowAuthModal(true)}
-              className="text-green-400 hover:text-green-300"
-            >
-              [LOGIN]
-            </button>
-          )}
+            )}
+          </div>
         </div>
         
         {/* Mobile header */}
@@ -1327,12 +1372,22 @@ export default function Home() {
             [CHANNELS]
           </button>
           <div className="text-center text-green-300">IRC CHAT</div>
-          <button 
-            onClick={() => setShowUsers(!showUsers)}
-            className="text-green-300 hover:text-yellow-400"
-          >
-            [USERS]
-          </button>
+          <div className="flex gap-2">
+            {!authUser && (
+              <button 
+                onClick={() => setShowAuthModal(true)}
+                className="text-green-400 hover:text-green-300"
+              >
+                [LOGIN]
+              </button>
+            )}
+            <button 
+              onClick={() => setShowUsers(!showUsers)}
+              className="text-green-300 hover:text-yellow-400"
+            >
+              [USERS]
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1343,23 +1398,7 @@ export default function Home() {
             <div className="w-64 h-full bg-black border-r border-green-400 p-4" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-4">
                 <div className="text-green-300">CHANNELS:</div>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={handleCreateCategory}
-                    className="text-xs text-green-300 hover:text-yellow-400"
-                    title="Create Category"
-                  >
-                    [+CAT]
-                  </button>
-                  <button 
-                    onClick={() => handleCreateChannel()}
-                    className="text-xs text-green-300 hover:text-yellow-400"
-                    title="Create Channel"
-                  >
-                    [+CH]
-                  </button>
-                  <button onClick={() => setShowSidebar(false)} className="text-red-400">[X]</button>
-                </div>
+                <button onClick={() => setShowSidebar(false)} className="text-red-400">[X]</button>
               </div>
               <div className="ml-2">
                 {servers.map(server => (
@@ -1403,25 +1442,7 @@ export default function Home() {
         {/* Desktop Channel List */}
         <div className="hidden sm:block w-64 lg:w-72 border-r border-green-400 p-4 flex-shrink-0 overflow-auto">
           <div className="mb-4">
-            <div className="flex justify-between items-center">
-              <div className="text-green-300">CHANNELS:</div>
-              <div className="flex gap-1">
-                <button 
-                  onClick={handleCreateCategory}
-                  className="text-xs text-green-300 hover:text-yellow-400 border border-green-400 px-2 py-1"
-                  title="Create Category"
-                >
-                  [+CAT]
-                </button>
-                <button 
-                  onClick={() => handleCreateChannel()}
-                  className="text-xs text-green-300 hover:text-yellow-400 border border-green-400 px-2 py-1"
-                  title="Create Channel"
-                >
-                  [+CH]
-                </button>
-              </div>
-            </div>
+            <div className="text-green-300">CHANNELS:</div>
             <div className="ml-2">
               {servers.map(server => (
                 <div key={server.id}>
@@ -1434,13 +1455,6 @@ export default function Home() {
                         >
                           {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
                         </div>
-                        <button 
-                          onClick={() => handleCreateChannel(category.id)}
-                          className="text-xs text-green-300 hover:text-yellow-400 ml-2"
-                          title="Add Channel to Category"
-                        >
-                          [+]
-                        </button>
                       </div>
                       {expandedCategories.has(category.id) && category.channels?.map(channel => (
                         <div 
@@ -1608,7 +1622,10 @@ export default function Home() {
         )}
 
         {/* Desktop User List */}
-        <div className="hidden lg:block w-64 lg:w-72 border-l border-green-400 p-4 flex-shrink-0 overflow-auto">
+        <div className="hidden lg:block w-64 lg:w-72 border-l border-green-400 p-4 flex-shrink-0 overflow-auto user-list" style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#1f2937 #000000'
+        }}>
           <div className="text-green-300 mb-4">USERS ({users.length}):</div>
           <div className="space-y-1">
             {users.map((user, index) => {

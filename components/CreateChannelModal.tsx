@@ -180,19 +180,54 @@ export default function CreateChannelModal({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-green-300 mb-1">CHANNEL NAME:</label>
-              <div className="flex items-center">
-                <span className="text-green-300 mr-1">#</span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                  className="flex-1 bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
-                  placeholder="channel-name"
-                  maxLength={50}
-                  pattern="[a-z0-9-]+"
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                value={`#${name}`}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.startsWith('#')) {
+                    setName(value.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                  }
+                }}
+                onKeyDown={(e) => {
+                  // Prevent deleting the # at the beginning
+                  const input = e.target as HTMLInputElement;
+                  const selectionStart = input.selectionStart || 0;
+                  const selectionEnd = input.selectionEnd || 0;
+                  
+                  if ((e.key === 'Backspace' || e.key === 'Delete') && selectionStart <= 1 && selectionEnd <= 1) {
+                    e.preventDefault();
+                  }
+                  
+                  // Prevent placing cursor before #
+                  if (e.key === 'ArrowLeft' && selectionStart <= 1) {
+                    e.preventDefault();
+                  }
+                }}
+                onSelect={(e) => {
+                  // Prevent selecting the # character
+                  const input = e.target as HTMLInputElement;
+                  const selectionStart = input.selectionStart || 0;
+                  
+                  if (selectionStart < 1) {
+                    input.setSelectionRange(1, input.selectionEnd || 1);
+                  }
+                }}
+                onFocus={(e) => {
+                  // Place cursor after # when focusing
+                  const input = e.target as HTMLInputElement;
+                  setTimeout(() => {
+                    if (input.selectionStart === 0) {
+                      input.setSelectionRange(1, 1);
+                    }
+                  }, 0);
+                }}
+                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                placeholder="#channel-name"
+                maxLength={51}
+                pattern="#[a-z0-9-]+"
+                required
+              />
               <div className="text-xs text-gray-400 mt-1">
                 LOWERCASE LETTERS, NUMBERS, AND HYPHENS ONLY
               </div>
@@ -217,12 +252,14 @@ export default function CreateChannelModal({
                 onChange={(e) => setSelectedCategoryId(e.target.value)}
                 className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
               >
-                <option value="">UNCATEGORIZED</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.emoji} {category.name.toUpperCase()}
-                  </option>
-                ))}
+                <option value="">NO CATEGORY</option>
+                {categories
+                  .filter((category) => category.id !== 'global' && category.id !== 'no-category')
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name.toUpperCase()}
+                    </option>
+                  ))}
               </select>
             </div>
 

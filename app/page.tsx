@@ -51,6 +51,7 @@ export default function Home() {
   const [commandSuggestions, setCommandSuggestions] = useState<Array<{command: string, description: string, requiresRole?: string}>>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<number>(0);
+  const [allGlobalUsers, setAllGlobalUsers] = useState<User[]>([]);
   const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
   const [pendingDeleteChannel, setPendingDeleteChannel] = useState<{id: string, name: string, requestedBy: string} | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
@@ -76,8 +77,8 @@ export default function Home() {
 
   // Fetch categories with channels from Supabase
   const fetchCategoriesAndChannels = useCallback(async () => {
-    // OPTIMIZED: Bundle categories and uncategorized channels in parallel
-    const [categoriesResult, uncategorizedResult] = await Promise.all([
+    // OPTIMIZED: Bundle categories, uncategorized channels, and global channel in parallel
+    const [categoriesResult, uncategorizedResult, globalChannelResult] = await Promise.all([
       supabase
         .from('channel_categories')
         .select(`
@@ -99,26 +100,52 @@ export default function Home() {
         .from('channels')
         .select('id, name, topic, category_id')
         .is('category_id', null)
+        .neq('name', 'global'),
+      
+      supabase
+        .from('channels')
+        .select('id, name, topic, category_id')
+        .eq('name', 'global')
+        .single()
     ]);
 
     const categoriesData = categoriesResult.data;
     const uncategorizedChannels = uncategorizedResult.data;
+    const globalChannel = globalChannelResult.data;
 
     if (categoriesResult.error) {
       console.error('Error fetching categories:', categoriesResult.error);
       return;
     }
 
-    const categories = [...(categoriesData || [])];
+    const categories = [];
     
-    // Add uncategorized channels as a special category if they exist
+    // Add global channel at the top as a special category
+    if (globalChannel) {
+      const globalCategory: ChannelCategory = {
+        id: 'global',
+        name: 'Global',
+        emoji: '🌍',
+        color: 'text-cyan-400',
+        sort_order: -1,
+        channels: [{ ...globalChannel, created_at: new Date().toISOString() }],
+        created_at: new Date().toISOString()
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      categories.push(globalCategory as any);
+    }
+    
+    // Add regular categories
+    categories.push(...(categoriesData || []));
+    
+    // Add uncategorized channels directly without a category wrapper
     if (uncategorizedChannels && uncategorizedChannels.length > 0) {
       const uncategorizedCategory: ChannelCategory = {
-        id: 'uncategorized',
-        name: 'Uncategorized',
-        emoji: '📝',
-        color: 'text-gray-400',
-        sort_order: 999,
+        id: 'no-category',
+        name: '',
+        emoji: '',
+        color: '',
+        sort_order: 998,
         channels: uncategorizedChannels?.map(ch => ({ ...ch, created_at: new Date().toISOString() })) || [],
         created_at: new Date().toISOString()
       };
@@ -150,9 +177,13 @@ export default function Home() {
       }
     }
     
-    // Auto-expand first category
+    // Auto-expand global category and first regular category
     if (categories.length > 0) {
-      setExpandedCategories(new Set([categories[0].id]));
+      const expandedSet = new Set(['global']); // Always expand global
+      if (categories.length > 1) {
+        expandedSet.add(categories[1].id); // Also expand first regular category
+      }
+      setExpandedCategories(expandedSet);
     }
   }, [currentChannel, fetchUnreadMentions, userId]);
 
@@ -181,6 +212,9 @@ export default function Home() {
 
     checkAuth();
     fetchCategoriesAndChannels();
+    
+    // Setup global presence tracking for all users (authenticated and lurkers)
+    setTimeout(() => setupGlobalPresence(), 1000);
 
     return () => {
       if (channel) {
@@ -328,26 +362,42 @@ export default function Home() {
   };
 
   const setupGlobalPresence = async () => {
-    if (!authUser || !userId) return;
-
     // Create a global presence channel for tracking all online users
     const globalChannel = supabase.channel('global-presence');
 
     // Track global online users
     globalChannel.on('presence', { event: 'sync' }, () => {
       const presenceState = globalChannel.presenceState();
-      const onlineCount = Object.keys(presenceState).length;
-      setGlobalOnlineUsers(onlineCount);
+      const allConnections = Object.values(presenceState).flat() as unknown as Array<{user_id: string, username: string, online_at: string}>;
+      
+      // Deduplicate users by ID (multiple tabs = multiple connections)
+      const uniqueUsers = allConnections.reduce((unique: User[], user) => {
+        const existingUser = unique.find(u => u.id === user.user_id);
+        if (!existingUser) {
+          unique.push({
+            id: user.user_id,
+            username: user.username,
+            currentChannel: 'global', // Default for global presence
+            role: 'member' // Default role
+          });
+        }
+        return unique;
+      }, []);
+      
+      setGlobalOnlineUsers(uniqueUsers.length);
+      setAllGlobalUsers(uniqueUsers);
     });
 
-    // Subscribe and track this user's global presence
+    // Subscribe and track this user's global presence (if authenticated)
     await globalChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        await globalChannel.track({
-          user_id: userId,
-          username: username,
-          online_at: new Date().toISOString(),
-        });
+        if (authUser && userId && username) {
+          await globalChannel.track({
+            user_id: userId,
+            username: username,
+            online_at: new Date().toISOString(),
+          });
+        }
       }
     });
   };
@@ -1737,13 +1787,192 @@ export default function Home() {
                 {categories.length === 0 ? (
                   <div className="text-gray-400 italic">No categories available</div>
                 ) : (
-                  categories.map(category => (
-                    <div key={category.id}>
+                  categories.map(category => {
+                    // Handle global channel specially - display without category header
+                    if (category.id === 'global') {
+                      return category.channels?.map(channel => (
+                        <div 
+                          key={channel.id}
+                          onClick={() => {
+                            switchChannel(channel.id);
+                            setShowSidebar(false);
+                          }}
+                          className={`cursor-pointer mb-2 ${
+                            currentChannel === channel.id
+                              ? 'text-yellow-400'
+                              : 'text-cyan-400 hover:text-yellow-400'
+                          }`}
+                        >
+                          <span className="flex items-center justify-between">
+                            <span>
+                              {currentChannel === channel.id ? '> ' : '  '}
+                              🌍 #{channel.name.toUpperCase()}
+                            </span>
+                            {unreadMentions[channel.id] && (
+                              <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
+                                @{unreadMentions[channel.id]}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ));
+                    }
+                    
+                    // Handle channels without category - display without category header
+                    if (category.id === 'no-category') {
+                      return category.channels?.map(channel => (
+                        <div 
+                          key={channel.id}
+                          onClick={() => {
+                            switchChannel(channel.id);
+                            setShowSidebar(false);
+                          }}
+                          className={`cursor-pointer mb-1 ${
+                            currentChannel === channel.id
+                              ? 'text-yellow-400'
+                              : 'text-green-400 hover:text-yellow-400'
+                          }`}
+                        >
+                          <span className="flex items-center justify-between">
+                            <span>
+                              {currentChannel === channel.id ? '> ' : '  '}
+                              #{channel.name.toUpperCase()}
+                            </span>
+                            {unreadMentions[channel.id] && (
+                              <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
+                                @{unreadMentions[channel.id]}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ));
+                    }
+                    
+                    // Regular categories
+                    return (
+                      <div key={category.id}>
+                        <div 
+                          onClick={() => toggleCategory(category.id)}
+                          className="cursor-pointer text-green-300 hover:text-yellow-400 mb-1"
+                        >
+                          {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
+                        </div>
+                        {expandedCategories.has(category.id) && (
+                          category.channels?.length === 0 ? (
+                            <div className="text-gray-400 italic ml-4">No channels in category</div>
+                          ) : (
+                            category.channels?.map(channel => (
+                              <div 
+                                key={channel.id}
+                                onClick={() => {
+                                  switchChannel(channel.id);
+                                  setShowSidebar(false);
+                                }}
+                                className={`cursor-pointer ml-4 ${
+                                  currentChannel === channel.id
+                                    ? 'text-yellow-400'
+                                    : 'text-green-400 hover:text-yellow-400'
+                                }`}
+                              >
+                                <span className="flex items-center justify-between">
+                                  <span>
+                                    {currentChannel === channel.id ? '> ' : '  '}
+                                    #{channel.name.toUpperCase()}
+                                  </span>
+                                  {unreadMentions[channel.id] && (
+                                    <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
+                                      @{unreadMentions[channel.id]}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            ))
+                          )
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              
+
+            </div>
+          </div>
+        )}
+
+        {/* Desktop Channel List */}
+        <div className="hidden sm:block w-64 lg:w-72 border-r border-green-400 p-4 flex-shrink-0 overflow-auto">
+          <div className="mb-4">
+            <div className="text-green-300">CHANNELS:</div>
+            <div className="ml-2">
+              {categories.length === 0 ? (
+                <div className="text-gray-400 italic">No categories available</div>
+              ) : (
+                categories.map(category => {
+                  // Handle global channel specially - display without category header
+                  if (category.id === 'global') {
+                    return category.channels?.map(channel => (
                       <div 
-                        onClick={() => toggleCategory(category.id)}
-                        className="cursor-pointer text-green-300 hover:text-yellow-400 mb-1"
+                        key={channel.id}
+                        onClick={() => switchChannel(channel.id)}
+                        className={`cursor-pointer mb-2 ${
+                          currentChannel === channel.id
+                            ? 'text-yellow-400'
+                            : 'text-cyan-400 hover:text-yellow-400'
+                        }`}
                       >
-                        {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.emoji} {category.name.toUpperCase()}
+                        <span className="flex items-center justify-between">
+                          <span>
+                            {currentChannel === channel.id ? '> ' : '  '}
+                            🌍 #{channel.name.toUpperCase()}
+                          </span>
+                          {unreadMentions[channel.id] && (
+                            <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
+                              @{unreadMentions[channel.id]}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    ));
+                  }
+                  
+                  // Handle channels without category - display without category header
+                  if (category.id === 'no-category') {
+                    return category.channels?.map(channel => (
+                      <div 
+                        key={channel.id}
+                        onClick={() => switchChannel(channel.id)}
+                        className={`cursor-pointer mb-1 ${
+                          currentChannel === channel.id
+                            ? 'text-yellow-400'
+                            : 'text-green-400 hover:text-yellow-400'
+                        }`}
+                      >
+                        <span className="flex items-center justify-between">
+                          <span>
+                            {currentChannel === channel.id ? '> ' : '  '}
+                            #{channel.name.toUpperCase()}
+                          </span>
+                          {unreadMentions[channel.id] && (
+                            <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
+                              @{unreadMentions[channel.id]}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    ));
+                  }
+                  
+                  // Regular categories
+                  return (
+                    <div key={category.id} className="mb-2">
+                      <div className="flex justify-between items-center mb-1">
+                        <div 
+                          onClick={() => toggleCategory(category.id)}
+                          className="cursor-pointer text-green-300 hover:text-yellow-400 font-medium flex-1"
+                        >
+                          {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
+                        </div>
                       </div>
                       {expandedCategories.has(category.id) && (
                         category.channels?.length === 0 ? (
@@ -1752,10 +1981,7 @@ export default function Home() {
                           category.channels?.map(channel => (
                             <div 
                               key={channel.id}
-                              onClick={() => {
-                                switchChannel(channel.id);
-                                setShowSidebar(false);
-                              }}
+                              onClick={() => switchChannel(channel.id)}
                               className={`cursor-pointer ml-4 ${
                                 currentChannel === channel.id
                                   ? 'text-yellow-400'
@@ -1778,64 +2004,8 @@ export default function Home() {
                         )
                       )}
                     </div>
-                  ))
-                )}
-              </div>
-              
-
-            </div>
-          </div>
-        )}
-
-        {/* Desktop Channel List */}
-        <div className="hidden sm:block w-64 lg:w-72 border-r border-green-400 p-4 flex-shrink-0 overflow-auto">
-          <div className="mb-4">
-            <div className="text-green-300">CHANNELS:</div>
-            <div className="ml-2">
-              {categories.length === 0 ? (
-                <div className="text-gray-400 italic">No categories available</div>
-              ) : (
-                categories.map(category => (
-                  <div key={category.id} className="mb-2">
-                    <div className="flex justify-between items-center mb-1">
-                      <div 
-                        onClick={() => toggleCategory(category.id)}
-                        className="cursor-pointer text-green-300 hover:text-yellow-400 font-medium flex-1"
-                      >
-                        {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.emoji} {category.name.toUpperCase()}
-                      </div>
-                    </div>
-                    {expandedCategories.has(category.id) && (
-                      category.channels?.length === 0 ? (
-                        <div className="text-gray-400 italic ml-4">No channels in category</div>
-                      ) : (
-                        category.channels?.map(channel => (
-                          <div 
-                            key={channel.id}
-                            onClick={() => switchChannel(channel.id)}
-                            className={`cursor-pointer ml-4 ${
-                              currentChannel === channel.id
-                                ? 'text-yellow-400'
-                                : 'text-green-400 hover:text-yellow-400'
-                            }`}
-                          >
-                            <span className="flex items-center justify-between">
-                              <span>
-                                {currentChannel === channel.id ? '> ' : '  '}
-                                #{channel.name.toUpperCase()}
-                              </span>
-                              {unreadMentions[channel.id] && (
-                                <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
-                                  @{unreadMentions[channel.id]}
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        ))
-                      )
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -1966,22 +2136,34 @@ export default function Home() {
         {showUsers && (
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => setShowUsers(false)}>
             <div className="w-48 h-full bg-black border-l border-green-400 p-4 ml-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-4">
-                <div className="text-green-300">USERS ({users.length}):</div>
-                <button onClick={() => setShowUsers(false)} className="text-red-400">[X]</button>
-              </div>
-              <div className="space-y-1">
-                {users.map((user, index) => {
-                  const member = channelMembers.find(m => m.user_id === user.id);
-                  const roleColor = member ? getRoleColor(member) : 'text-green-400';
-                  
-                  return (
-                    <div key={`mobile-user-${user.id}-${index}`} className={roleColor}>
-                      {user.username.toUpperCase()}
+              {(() => {
+                const isGlobalChannel = getCurrentChannelName() === 'global';
+                const displayUsers = isGlobalChannel ? allGlobalUsers : users;
+                const userCount = displayUsers.length;
+                
+                return (
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="text-green-300">
+                        {isGlobalChannel ? 'GLOBAL USERS' : 'USERS'} ({userCount}):
+                      </div>
+                      <button onClick={() => setShowUsers(false)} className="text-red-400">[X]</button>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="space-y-1">
+                      {displayUsers.map((user, index) => {
+                        const member = channelMembers.find(m => m.user_id === user.id);
+                        const roleColor = member ? getRoleColor(member) : 'text-green-400';
+                        
+                        return (
+                          <div key={`mobile-user-${user.id}-${index}`} className={roleColor}>
+                            {user.username.toUpperCase()}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -1991,19 +2173,31 @@ export default function Home() {
           scrollbarWidth: 'thin',
           scrollbarColor: '#1f2937 #000000'
         }}>
-          <div className="text-green-300 mb-4">USERS ({users.length}):</div>
-          <div className="space-y-1">
-            {users.map((user, index) => {
-              const member = channelMembers.find(m => m.user_id === user.id);
-              const roleColor = member ? getRoleColor(member) : 'text-green-400';
-              
-              return (
-                <div key={`desktop-user-${user.id}-${index}`} className={roleColor}>
-                  {user.username.toUpperCase()}
+          {(() => {
+            const isGlobalChannel = getCurrentChannelName() === 'global';
+            const displayUsers = isGlobalChannel ? allGlobalUsers : users;
+            const userCount = displayUsers.length;
+            
+            return (
+              <>
+                <div className="text-green-300 mb-4">
+                  {isGlobalChannel ? 'GLOBAL USERS' : 'USERS'} ({userCount}):
                 </div>
-              );
-            })}
-          </div>
+                <div className="space-y-1">
+                  {displayUsers.map((user, index) => {
+                    const member = channelMembers.find(m => m.user_id === user.id);
+                    const roleColor = member ? getRoleColor(member) : 'text-green-400';
+                    
+                    return (
+                      <div key={`desktop-user-${user.id}-${index}`} className={roleColor}>
+                        {user.username.toUpperCase()}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
 

@@ -21,11 +21,13 @@ export default function CreateChannelModal({
   const [selectedCategoryId, setSelectedCategoryId] = useState(categoryId || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       // Get current user and profile
@@ -155,8 +157,14 @@ export default function CreateChannelModal({
 
       if (memberError) throw memberError;
 
-      onSuccess();
-      onClose();
+      // Show success message briefly before closing
+      setSuccess(`Channel #${cleanName} created successfully!`);
+      setLoading(false);
+      
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
@@ -267,6 +275,12 @@ export default function CreateChannelModal({
             {error && (
               <div className="text-red-400 text-xs">
                 *** ERROR: {error.toUpperCase()}
+              </div>
+            )}
+            
+            {success && (
+              <div className="text-green-400 text-xs">
+                *** {success.toUpperCase()}
               </div>
             )}
 

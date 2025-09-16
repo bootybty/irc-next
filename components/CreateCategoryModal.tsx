@@ -12,12 +12,14 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       // Get the highest sort_order across all categories
@@ -44,8 +46,14 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
 
       if (insertError) throw insertError;
 
-      onSuccess();
-      onClose();
+      // Show success message briefly before closing
+      setSuccess(`Category "${name.trim()}" created successfully!`);
+      setLoading(false);
+      
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
@@ -83,6 +91,12 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
             {error && (
               <div className="text-red-400 text-xs">
                 *** ERROR: {error.toUpperCase()}
+              </div>
+            )}
+            
+            {success && (
+              <div className="text-green-400 text-xs">
+                *** {success.toUpperCase()}
               </div>
             )}
 

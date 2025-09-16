@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, startTransition } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import AuthModal from '@/components/AuthModal';
@@ -25,6 +26,8 @@ interface Message {
 
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [connected, setConnected] = useState(false);
   const [username, setUsername] = useState('');
@@ -50,12 +53,12 @@ export default function Home() {
   const [showCommandSuggestions, setShowCommandSuggestions] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<Array<{command: string, description: string, requiresRole?: string}>>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
-  const [globalOnlineUsers, setGlobalOnlineUsers] = useState<number>(0);
-  const [allGlobalUsers, setAllGlobalUsers] = useState<User[]>([]);
   const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
   const [currentTopic, setCurrentTopic] = useState<string>('');
   const [joinStatus, setJoinStatus] = useState<'joining' | 'success' | 'failed' | null>(null);
   const [joiningChannelName, setJoiningChannelName] = useState<string>('');
+  const [switchingChannel, setSwitchingChannel] = useState<string>('');
+  const [urlUpdateTimeout, setUrlUpdateTimeout] = useState<NodeJS.Timeout | null>(null);
   const [pendingDeleteChannel, setPendingDeleteChannel] = useState<{id: string, name: string, requestedBy: string} | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [unreadMentions, setUnreadMentions] = useState<Record<string, number>>({});
@@ -78,10 +81,13 @@ export default function Home() {
     }
   }, [userId]);
 
+  // Define universal channels that should appear at the top
+  const universalChannels = ['global', 'general', 'random', 'tech', 'gaming', 'music', 'news', 'help', 'projects', 'feedback'];
+
   // Fetch categories with channels from Supabase
   const fetchCategoriesAndChannels = useCallback(async () => {
-    // OPTIMIZED: Bundle categories, uncategorized channels, and global channel in parallel
-    const [categoriesResult, uncategorizedResult, globalChannelResult] = await Promise.all([
+    // OPTIMIZED: Bundle categories, uncategorized channels, and universal channels in parallel
+    const [categoriesResult, uncategorizedResult, universalChannelsResult] = await Promise.all([
       supabase
         .from('channel_categories')
         .select(`
@@ -97,24 +103,23 @@ export default function Home() {
             category_id
           )
         `)
-        .order('sort_order'),
+        .order('name'),
       
       supabase
         .from('channels')
         .select('id, name, topic, category_id')
         .is('category_id', null)
-        .neq('name', 'global'),
+        .not('name', 'in', `(${universalChannels.map(ch => `"${ch}"`).join(',')})`),
       
       supabase
         .from('channels')
         .select('id, name, topic, category_id')
-        .eq('name', 'global')
-        .single()
+        .in('name', universalChannels)
     ]);
 
     const categoriesData = categoriesResult.data;
     const uncategorizedChannels = uncategorizedResult.data;
-    const globalChannel = globalChannelResult.data;
+    const fetchedUniversalChannels = universalChannelsResult.data || [];
 
     if (categoriesResult.error) {
       console.error('Error fetching categories:', categoriesResult.error);
@@ -123,33 +128,48 @@ export default function Home() {
 
     const categories = [];
     
-    // Add global channel at the top as a special category
-    if (globalChannel) {
-      const globalCategory: ChannelCategory = {
-        id: 'global',
-        name: 'Global',
-        emoji: '🌍',
-        color: 'text-cyan-400',
+    // Sort universal channels alphabetically, but keep global first
+    const globalChannel = fetchedUniversalChannels.find(ch => ch.name === 'global');
+    const otherUniversalChannels = fetchedUniversalChannels
+      .filter(ch => universalChannels.includes(ch.name) && ch.name !== 'global')
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    const sortedUniversalChannels = [
+      ...(globalChannel ? [globalChannel] : []),
+      ...otherUniversalChannels
+    ].map(ch => ({ ...ch, created_at: new Date().toISOString() }));
+    
+    // Add universal channels at the top as individual channels (no category wrapper)
+    if (sortedUniversalChannels.length > 0) {
+      const universalCategory: ChannelCategory = {
+        id: 'universal',
+        name: '',
+        emoji: '',
+        color: '',
         sort_order: -1,
-        channels: [{ ...globalChannel, created_at: new Date().toISOString() }],
+        channels: sortedUniversalChannels,
         created_at: new Date().toISOString()
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      categories.push(globalCategory as any);
+      categories.push(universalCategory as any);
     }
     
     // Add regular categories
     categories.push(...(categoriesData || []));
     
-    // Add uncategorized channels directly without a category wrapper
+    // Add uncategorized channels directly without a category wrapper (sorted alphabetically)
     if (uncategorizedChannels && uncategorizedChannels.length > 0) {
+      const sortedUncategorized = uncategorizedChannels
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(ch => ({ ...ch, created_at: new Date().toISOString() }));
+        
       const uncategorizedCategory: ChannelCategory = {
         id: 'no-category',
         name: '',
         emoji: '',
         color: '',
-        sort_order: 998,
-        channels: uncategorizedChannels?.map(ch => ({ ...ch, created_at: new Date().toISOString() })) || [],
+        sort_order: 0,
+        channels: sortedUncategorized,
         created_at: new Date().toISOString()
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,9 +184,9 @@ export default function Home() {
       fetchUnreadMentions();
     }
     
-    // Auto-select first channel if none selected
-    if (!currentChannel && categories.length > 0) {
-      // Find first channel in any category
+    // Auto-select first channel if none selected and no URL channel
+    if (!currentChannel && categories.length > 0 && !Array.from(searchParams.keys())[0]) {
+      // Auto-select first channel when no URL channel specified
       let firstChannel = null;
       for (const category of categories) {
         if (category.channels && category.channels.length > 0) {
@@ -180,15 +200,10 @@ export default function Home() {
       }
     }
     
-    // Auto-expand global category and first regular category
-    if (categories.length > 0) {
-      const expandedSet = new Set(['global']); // Always expand global
-      if (categories.length > 1) {
-        expandedSet.add(categories[1].id); // Also expand first regular category
-      }
-      setExpandedCategories(expandedSet);
-    }
-  }, [currentChannel, fetchUnreadMentions, userId]);
+    // Keep all categories collapsed by default
+    setExpandedCategories(new Set());
+  }, [fetchUnreadMentions, userId]);
+
 
   useEffect(() => {
     // Check for existing session
@@ -207,17 +222,12 @@ export default function Home() {
           setUserId(session.user.id);
           setShowAuthModal(false);
           
-          // Setup global presence tracking for existing session
-          setTimeout(() => setupGlobalPresence(), 1000);
         }
       }
     };
 
     checkAuth();
     fetchCategoriesAndChannels();
-    
-    // Setup global presence tracking for all users (authenticated and lurkers)
-    setTimeout(() => setupGlobalPresence(), 1000);
 
     return () => {
       if (channel) {
@@ -364,46 +374,6 @@ export default function Home() {
     setChannel(newChannel);
   };
 
-  const setupGlobalPresence = async () => {
-    // Create a global presence channel for tracking all online users
-    const globalChannel = supabase.channel('global-presence');
-
-    // Track global online users
-    globalChannel.on('presence', { event: 'sync' }, () => {
-      const presenceState = globalChannel.presenceState();
-      const allConnections = Object.values(presenceState).flat() as unknown as Array<{user_id: string, username: string, online_at: string}>;
-      
-      // Deduplicate users by ID (multiple tabs = multiple connections)
-      const uniqueUsers = allConnections.reduce((unique: User[], user) => {
-        const existingUser = unique.find(u => u.id === user.user_id);
-        if (!existingUser) {
-          unique.push({
-            id: user.user_id,
-            username: user.username,
-            currentChannel: 'global', // Default for global presence
-            role: 'member' // Default role
-          });
-        }
-        return unique;
-      }, []);
-      
-      setGlobalOnlineUsers(uniqueUsers.length);
-      setAllGlobalUsers(uniqueUsers);
-    });
-
-    // Subscribe and track this user's global presence (if authenticated)
-    await globalChannel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        if (authUser && userId && username) {
-          await globalChannel.track({
-            user_id: userId,
-            username: username,
-            online_at: new Date().toISOString(),
-          });
-        }
-      }
-    });
-  };
 
   const handleModerationCommand = async (command: string, args: string[]) => {
     if (!authUser || !userId) return false;
@@ -1359,7 +1329,9 @@ export default function Home() {
     });
   };
 
-  const switchChannel = async (channelId: string) => {
+  const switchChannel = async (channelId: string, updateUrl: boolean = true) => {
+    console.log('switchChannel called with:', channelId, 'current:', currentChannel);
+    
     // Find channel name from categories before starting join process
     let channelName = 'unknown-channel';
     for (const category of categories) {
@@ -1370,13 +1342,26 @@ export default function Home() {
       }
     }
     
-    setCurrentChannel(channelId);
-    setMessages([]); // Clear messages when switching
-    setUsers([]); // Clear users when switching
-    setLocalMessages([]); // Clear local messages when switching
-    setPendingDeleteChannel(null); // Clear pending delete when switching
-    setJoinStatus('joining'); // Set joining status
-    setJoiningChannelName(channelName); // Store channel name for status messages
+    // Update URL to reflect current channel (using hash to minimize favicon requests)
+    if (updateUrl) {
+      const newUrl = channelName !== 'unknown-channel' ? `/#${channelName}` : '/';
+      window.history.replaceState({}, '', newUrl);
+    }
+    
+    console.log('Setting currentChannel to:', channelId);
+    
+    // Don't update currentChannel immediately to prevent jiggling
+    // setCurrentChannel(channelId);
+    
+    // Batch non-critical UI updates to prevent jiggling
+    startTransition(() => {
+      setMessages([]); // Clear messages when switching
+      setUsers([]); // Clear users when switching
+      setLocalMessages([]); // Clear local messages when switching
+      setPendingDeleteChannel(null); // Clear pending delete when switching
+      setJoinStatus('joining'); // Set joining status
+      setJoiningChannelName(channelName); // Store channel name for status messages
+    });
     
     // Mark mentions as read in this channel
     await markMentionsAsRead(channelId);
@@ -1408,29 +1393,33 @@ export default function Home() {
 
     // Process channel data
     const channelData = channelResult.data;
-    if (channelData?.motd) {
-      setCurrentMotd(channelData.motd.toUpperCase());
-    } else {
-      setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
-    }
     
-    if (channelData?.topic) {
-      setCurrentTopic(channelData.topic);
-    } else {
-      setCurrentTopic('');
-    }
+    // Batch channel data updates to prevent re-renders
+    startTransition(() => {
+      if (channelData?.motd) {
+        setCurrentMotd(channelData.motd.toUpperCase());
+      } else {
+        setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
+      }
+      
+      if (channelData?.topic) {
+        setCurrentTopic(channelData.topic);
+      } else {
+        setCurrentTopic('');
+      }
 
-    // Process messages
-    if (messagesResult.data) {
-      const formattedMessages = messagesResult.data.map(msg => ({
-        id: msg.id,
-        username: msg.username,
-        content: msg.content,
-        timestamp: new Date(msg.created_at),
-        channel: channelId
-      }));
-      setMessages(formattedMessages);
-    }
+      // Process messages
+      if (messagesResult.data) {
+        const formattedMessages = messagesResult.data.map(msg => ({
+          id: msg.id,
+          username: msg.username,
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          channel: channelId
+        }));
+        setMessages(formattedMessages);
+      }
+    });
     
     // Only authenticated users join as members and track presence
     if (authUser) {
@@ -1445,11 +1434,62 @@ export default function Home() {
       
       // Set success status if we made it this far
       setJoinStatus('success');
+      setSwitchingChannel('');
+      
+      // Only update currentChannel when everything is loaded to prevent jiggling
+      setCurrentChannel(channelId);
     } catch (error) {
       console.error('Error switching channel:', error);
       setJoinStatus('failed');
+      setSwitchingChannel('');
+      // Still update currentChannel even on error to show something
+      setCurrentChannel(channelId);
     }
   };
+
+  // Handle URL channel selection when categories are loaded
+  useEffect(() => {
+    // Get channel name from hash (from #tech format)
+    const urlChannelName = window.location.hash.slice(1) || '';
+    console.log('URL channel name from hash:', urlChannelName, 'Categories loaded:', categories.length);
+    
+    if (urlChannelName && categories.length > 0) {
+      // Try to find channel by name from URL
+      let foundChannelId = '';
+      for (const category of categories) {
+        const channel = category.channels?.find(c => c.name === urlChannelName);
+        if (channel) {
+          foundChannelId = channel.id;
+          console.log('Found channel:', channel.name, 'ID:', foundChannelId);
+          break;
+        }
+      }
+      
+      if (foundChannelId && foundChannelId !== currentChannel) {
+        console.log('Switching to channel:', foundChannelId);
+        switchChannel(foundChannelId, false); // Don't update URL when coming from URL
+      }
+    }
+  }, [categories, currentChannel]);
+
+  // Listen for hash changes (browser back/forward)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const urlChannelName = window.location.hash.slice(1) || '';
+      if (urlChannelName && categories.length > 0) {
+        for (const category of categories) {
+          const channel = category.channels?.find(c => c.name === urlChannelName);
+          if (channel && channel.id !== currentChannel) {
+            switchChannel(channel.id, false);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [categories, currentChannel]);
 
   const handleAuthSuccess = (user: { id: string; username: string }) => {
     setAuthUser(user);
@@ -1457,8 +1497,6 @@ export default function Home() {
     setUserId(user.id);
     setShowAuthModal(false);
     
-    // Setup global presence tracking
-    setTimeout(() => setupGlobalPresence(), 1000);
   };
 
   const handleLogout = async () => {
@@ -1900,8 +1938,8 @@ export default function Home() {
                   <div className="text-gray-400 italic">No categories available</div>
                 ) : (
                   categories.map(category => {
-                    // Handle global channel specially - display without category header
-                    if (category.id === 'global') {
+                    // Handle universal channels specially - display without category header
+                    if (category.id === 'universal') {
                       return category.channels?.map(channel => (
                         <div 
                           key={channel.id}
@@ -1917,7 +1955,7 @@ export default function Home() {
                         >
                           <span className="flex items-center justify-between">
                             <span>
-                              {currentChannel === channel.id ? '> ' : '  '}
+                              <span className="w-4 inline-block">{currentChannel === channel.id ? '>' : ''}</span>
                               #{channel.name.toUpperCase()}
                             </span>
                             {unreadMentions[channel.id] && (
@@ -1947,7 +1985,7 @@ export default function Home() {
                         >
                           <span className="flex items-center justify-between">
                             <span>
-                              {currentChannel === channel.id ? '> ' : '  '}
+                              <span className="w-4 inline-block">{currentChannel === channel.id ? '>' : ''}</span>
                               #{channel.name.toUpperCase()}
                             </span>
                             {unreadMentions[channel.id] && (
@@ -2021,8 +2059,8 @@ export default function Home() {
                 <div className="text-gray-400 italic">No categories available</div>
               ) : (
                 categories.map(category => {
-                  // Handle global channel specially - display without category header
-                  if (category.id === 'global') {
+                  // Handle universal channels specially - display without category header
+                  if (category.id === 'universal') {
                     return category.channels?.map(channel => (
                       <div 
                         key={channel.id}
@@ -2035,7 +2073,7 @@ export default function Home() {
                       >
                         <span className="flex items-center justify-between">
                           <span>
-                            {currentChannel === channel.id ? '> ' : '  '}
+                            <span className="w-4 inline-block">{currentChannel === channel.id ? '>' : ''}</span>
                             #{channel.name.toUpperCase()}
                           </span>
                           {unreadMentions[channel.id] && (
@@ -2062,7 +2100,7 @@ export default function Home() {
                       >
                         <span className="flex items-center justify-between">
                           <span>
-                            {currentChannel === channel.id ? '> ' : '  '}
+                            <span className="w-4 inline-block">{currentChannel === channel.id ? '>' : ''}</span>
                             #{channel.name.toUpperCase()}
                           </span>
                           {unreadMentions[channel.id] && (
@@ -2102,7 +2140,7 @@ export default function Home() {
                             >
                               <span className="flex items-center justify-between">
                                 <span>
-                                  {currentChannel === channel.id ? '> ' : '  '}
+                                  <span className="w-4 inline-block">{currentChannel === channel.id ? '>' : ''}</span>
                                   #{channel.name.toUpperCase()}
                                 </span>
                                 {unreadMentions[channel.id] && (
@@ -2263,15 +2301,16 @@ export default function Home() {
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => setShowUsers(false)}>
             <div className="w-48 h-full bg-black border-l border-green-400 p-4 ml-auto" onClick={(e) => e.stopPropagation()}>
               {(() => {
-                const isGlobalChannel = getCurrentChannelName() === 'global';
-                const displayUsers = isGlobalChannel ? allGlobalUsers : users;
+                const currentChannelName = getCurrentChannelName();
+                const isGlobalChannel = currentChannelName === 'global';
+                const displayUsers = users;
                 const userCount = displayUsers.length;
                 
                 return (
                   <>
                     <div className="flex justify-between items-center mb-4">
                       <div className="text-green-300">
-                        {isGlobalChannel ? 'GLOBAL USERS' : 'USERS'} ({userCount}):
+                        USERS ({userCount}):
                       </div>
                       <button onClick={() => setShowUsers(false)} className="text-red-400">[X]</button>
                     </div>
@@ -2300,14 +2339,16 @@ export default function Home() {
           scrollbarColor: '#1f2937 #000000'
         }}>
           {(() => {
-            const isGlobalChannel = getCurrentChannelName() === 'global';
-            const displayUsers = isGlobalChannel ? allGlobalUsers : users;
+            const currentChannelName = getCurrentChannelName();
+            const isGlobalChannel = currentChannelName === 'global';
+            // For global channel, show users from regular channel - same as other channels for now
+            const displayUsers = users;
             const userCount = displayUsers.length;
             
             return (
               <>
                 <div className="text-green-300 mb-4">
-                  {isGlobalChannel ? 'GLOBAL USERS' : 'USERS'} ({userCount}):
+                  USERS ({userCount}):
                 </div>
                 <div className="space-y-1">
                   {displayUsers.map((user, index) => {
@@ -2328,12 +2369,9 @@ export default function Home() {
       </div>
 
       {/* Bottom Status */}
-      <div className="border-t border-green-400 p-1 text-center text-xs flex-shrink-0">
-        <div className="hidden sm:block">
-          ONLINE: {globalOnlineUsers} | {connected ? 'CONNECTED' : 'DISCONNECTED'}
-        </div>
-        <div className="sm:hidden">
-          ONLINE: {globalOnlineUsers} | {connected ? 'CONNECTED' : 'DISCONNECTED'}
+      <div className="border-t border-green-400 p-2 flex justify-end flex-shrink-0">
+        <div className="text-xs">
+          {connected ? 'CONNECTED' : 'DISCONNECTED'}
         </div>
       </div>
 

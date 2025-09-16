@@ -1479,7 +1479,10 @@ export default function Home() {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 p-2 sm:p-4 overflow-auto">
+          <div className="flex-1 p-2 sm:p-4 overflow-auto chat-area" style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#1f2937 #000000'
+          }}>
             <div className="space-y-1">
               <div className="hidden sm:block">*** MOTD: WELCOME TO THE RETRO IRC EXPERIENCE ***</div>
               <div className="hidden sm:block">*** CONNECTING TO {servers.find(s => s.id === currentServer)?.name.toUpperCase()}:6667</div>
@@ -1537,23 +1540,35 @@ export default function Home() {
           {/* Input Line */}
           <div className="border-t border-green-400 p-2">
             {authUser ? (
-              <div className="flex">
-                <span className="text-green-300 hidden sm:inline">[#{getCurrentChannelName().toUpperCase()}]&gt; </span>
-                <span className="text-green-300 sm:hidden">&gt; </span>
-                <input 
-                  type="text" 
+              <div className="flex items-end">
+                <span className="text-green-300 hidden sm:inline pb-1">[#{getCurrentChannelName().toUpperCase()}]&gt; </span>
+                <span className="text-green-300 sm:hidden pb-1">&gt; </span>
+                <textarea 
                   value={inputMessage}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !showCommandSuggestions) {
+                    if (e.key === 'Enter' && !e.shiftKey && !showCommandSuggestions) {
+                      e.preventDefault();
                       sendMessage();
                     }
                   }}
-                  className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600"
+                  className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600 resize-none overflow-y-auto"
                   placeholder={userRole === 'owner' || userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
+                  rows={1}
+                  style={{
+                    minHeight: '1.25rem',
+                    maxHeight: '6rem',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#1f2937 #000000'
+                  }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 96) + 'px';
+                  }}
                 />
-                <span className="animate-pulse text-green-300">█</span>
+                <span className="animate-pulse text-green-300 pb-1">█</span>
               </div>
             ) : (
               <div className="flex justify-center">

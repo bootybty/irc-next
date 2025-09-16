@@ -52,7 +52,7 @@ export default function Home() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [authUser, setAuthUser] = useState<any>(null);
-  const [showAuthModal, setShowAuthModal] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [selectedCategoryForChannel, setSelectedCategoryForChannel] = useState<string>('');
@@ -172,14 +172,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Auto-join channel when authenticated
-    if (authUser && !isJoined) {
+    // Auto-join default channel for all users (authenticated and lurkers)
+    if (!isJoined) {
       switchChannel(currentServer, currentChannel);
       setIsJoined(true);
     }
-  }, [authUser, isJoined]);
+  }, [isJoined]);
 
-  const joinChannel = (serverId: string, channelId: string) => {
+  const joinChannel = async (serverId: string, channelId: string) => {
     // Cleanup old channel
     if (channel) {
       supabase.removeChannel(channel);
@@ -211,7 +211,7 @@ export default function Home() {
       console.log('User typing:', payload.payload.username);
     });
 
-    // Track online users via presence
+    // Track online users via presence (all users can see this)
     newChannel.on('presence', { event: 'sync' }, () => {
       const presenceState = newChannel.presenceState();
       const onlineUsers = Object.values(presenceState).flat() as User[];
@@ -243,14 +243,16 @@ export default function Home() {
         console.log(`Connected to ${channelName}`);
         setConnected(true);
         
-        // Track our presence
-        await newChannel.track({
-          id: userId || `user_${Date.now()}`,
-          username: username,
-          currentServer: serverId,
-          currentChannel: channelId,
-          last_seen: new Date().toISOString()
-        });
+        // Track our presence only if authenticated
+        if (authUser && userId && username) {
+          await newChannel.track({
+            id: userId,
+            username: username,
+            currentServer: serverId,
+            currentChannel: channelId,
+            last_seen: new Date().toISOString()
+          });
+        }
       }
     });
 
@@ -854,31 +856,36 @@ export default function Home() {
     setUsers([]); // Clear users when switching
     // Keep existing channelMembers to avoid flashing, will be updated by fetchChannelMembers
     
-    if (authUser) {
-      // Fetch existing messages for this channel
-      const { data: existingMessages } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('channel_id', channelId)
-        .order('created_at', { ascending: true })
-        .limit(50);
+    // Fetch existing messages for this channel (available to all users)
+    const { data: existingMessages } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('channel_id', channelId)
+      .order('created_at', { ascending: true })
+      .limit(50);
 
-      if (existingMessages) {
-        const formattedMessages = existingMessages.map(msg => ({
-          id: msg.id,
-          username: msg.username,
-          content: msg.content,
-          timestamp: new Date(msg.created_at),
-          server: serverId,
-          channel: channelId
-        }));
-        setMessages(formattedMessages);
-      }
-      
-      await joinChannelAsMember(channelId);
-      await fetchChannelMembers(channelId);
-      joinChannel(serverId, channelId);
+    if (existingMessages) {
+      const formattedMessages = existingMessages.map(msg => ({
+        id: msg.id,
+        username: msg.username,
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        server: serverId,
+        channel: channelId
+      }));
+      setMessages(formattedMessages);
     }
+    
+    // All users fetch channel members for role colors
+    await fetchChannelMembers(channelId);
+    
+    // Only authenticated users join as members and track presence
+    if (authUser) {
+      await joinChannelAsMember(channelId);
+    }
+    
+    // All users (including lurkers) can join realtime channel for messages
+    await joinChannel(serverId, channelId);
   };
 
   const handleAuthSuccess = (user: any) => {
@@ -948,16 +955,19 @@ export default function Home() {
       .eq('channel_id', channelId);
 
     if (members) {
+      console.log('📥 Setting channelMembers:', members.length, 'members loaded');
       setChannelMembers(members);
 
-      // Set current user's role and permissions
-      const currentUserMember = members.find(m => m.user_id === userId);
-      if (currentUserMember?.channel_role) {
-        setUserRole(currentUserMember.channel_role.name);
-        setUserPermissions(currentUserMember.channel_role.permissions);
-      } else {
-        setUserRole('Member');
-        setUserPermissions({});
+      // Set current user's role and permissions only if authenticated
+      if (authUser && userId) {
+        const currentUserMember = members.find(m => m.user_id === userId);
+        if (currentUserMember?.channel_role) {
+          setUserRole(currentUserMember.channel_role.name);
+          setUserPermissions(currentUserMember.channel_role.permissions);
+        } else {
+          setUserRole('Member');
+          setUserPermissions({});
+        }
       }
     }
   };
@@ -1019,6 +1029,7 @@ export default function Home() {
     // Only show role-based colors if we have loaded channel members for the current channel
     const member = channelMembers.find(m => m.username.toLowerCase() === username.toLowerCase());
     if (member) {
+      console.log(`🎨 Role color for ${username}: ${getRoleColor(member)} (from member data)`);
       return getRoleColor(member);
     }
     
@@ -1026,6 +1037,7 @@ export default function Home() {
     // This prevents flashing between different colors
     const userColors = ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
     const colorIndex = username.charCodeAt(0) % userColors.length;
+    console.log(`🎨 Fallback color for ${username}: ${userColors[colorIndex]} (no member data found, channelMembers.length: ${channelMembers.length})`);
     return userColors[colorIndex];
   };
 
@@ -1291,6 +1303,29 @@ export default function Home() {
                ██  ██   ██ ██          ██     ██   ██ ██   ██    ██    
           ████████ ██   ██  ██████     ██████ ██   ██ ██   ██ ████████ 
         </div>
+        
+        {/* Auth section at bottom of header */}
+        <div className="flex justify-end mt-2 text-xs gap-2">
+          {authUser ? (
+            <>
+              <span className="text-yellow-400">{username.toUpperCase()}</span>
+              <button 
+                onClick={handleLogout}
+                className="text-red-400 hover:text-red-300"
+              >
+                [LOGOUT]
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={() => setShowAuthModal(true)}
+              className="text-green-400 hover:text-green-300"
+            >
+              [LOGIN]
+            </button>
+          )}
+        </div>
+        
         {/* Mobile header */}
         <div className="sm:hidden flex items-center justify-between">
           <button 
@@ -1305,16 +1340,6 @@ export default function Home() {
             className="text-green-300 hover:text-yellow-400"
           >
             [USERS]
-          </button>
-        </div>
-        {/* Desktop header with logout */}
-        <div className="hidden sm:flex items-center justify-between">
-          <div className="text-green-300">USER: {username.toUpperCase()}</div>
-          <button 
-            onClick={handleLogout}
-            className="text-red-400 hover:text-yellow-400 text-xs"
-          >
-            [LOGOUT]
           </button>
         </div>
       </div>
@@ -1343,15 +1368,6 @@ export default function Home() {
                   </button>
                   <button onClick={() => setShowSidebar(false)} className="text-red-400">[X]</button>
                 </div>
-              </div>
-              <div className="mb-4 pb-2 border-b border-green-400">
-                <div className="text-green-300 text-xs">USER: {username.toUpperCase()}</div>
-                <button 
-                  onClick={handleLogout}
-                  className="text-red-400 hover:text-yellow-400 text-xs mt-1"
-                >
-                  [LOGOUT]
-                </button>
               </div>
               <div className="ml-2">
                 {servers.map(server => (
@@ -1476,6 +1492,9 @@ export default function Home() {
               <div className="hidden sm:block">*** MOTD: WELCOME TO THE RETRO IRC EXPERIENCE ***</div>
               <div className="hidden sm:block">*** CONNECTING TO {servers.find(s => s.id === currentServer)?.name.toUpperCase()}:6667</div>
               <div className="hidden sm:block">*** JOINING #{getCurrentChannelName().toUpperCase()}</div>
+              {!authUser && (
+                <div className="text-yellow-400">*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
+              )}
               {messages.map(message => {
                 const time = new Date(message.timestamp).toLocaleTimeString('en-US', { hour12: false });
                 const userColor = getUserRoleColor(message.username);
@@ -1489,7 +1508,7 @@ export default function Home() {
           </div>
 
           {/* Command Autocomplete */}
-          {showCommandSuggestions && (
+          {authUser && showCommandSuggestions && (
             <div className="border-t border-green-400 bg-black max-h-48 overflow-y-auto command-suggestions" style={{
               scrollbarWidth: 'thin',
               scrollbarColor: '#4b5563 #1f2937'
@@ -1525,24 +1544,35 @@ export default function Home() {
 
           {/* Input Line */}
           <div className="border-t border-green-400 p-2">
-            <div className="flex">
-              <span className="text-green-300 hidden sm:inline">[#{getCurrentChannelName().toUpperCase()}]&gt; </span>
-              <span className="text-green-300 sm:hidden">&gt; </span>
-              <input 
-                type="text" 
-                value={inputMessage}
-                onChange={(e) => handleInputChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !showCommandSuggestions) {
-                    sendMessage();
-                  }
-                }}
-                className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600"
-                placeholder={userRole === 'owner' || userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
-              />
-              <span className="animate-pulse text-green-300">█</span>
-            </div>
+            {authUser ? (
+              <div className="flex">
+                <span className="text-green-300 hidden sm:inline">[#{getCurrentChannelName().toUpperCase()}]&gt; </span>
+                <span className="text-green-300 sm:hidden">&gt; </span>
+                <input 
+                  type="text" 
+                  value={inputMessage}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !showCommandSuggestions) {
+                      sendMessage();
+                    }
+                  }}
+                  className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600"
+                  placeholder={userRole === 'owner' || userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
+                />
+                <span className="animate-pulse text-green-300">█</span>
+              </div>
+            ) : (
+              <div className="flex justify-center">
+                <button 
+                  onClick={() => setShowAuthModal(true)}
+                  className="text-yellow-400 hover:text-yellow-300 text-center"
+                >
+                  *** LOGIN TO CHAT ***
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1557,8 +1587,7 @@ export default function Home() {
               <div className="space-y-1 text-xs">
                 {users.map((user, index) => {
                   const member = channelMembers.find(m => m.user_id === user.id);
-                  if (!member) return null;
-                  const roleColor = getRoleColor(member);
+                  const roleColor = member ? getRoleColor(member) : 'text-green-400';
                   
                   return (
                     <div key={`mobile-user-${user.id}-${index}`} className={roleColor}>
@@ -1577,8 +1606,7 @@ export default function Home() {
           <div className="space-y-1 text-xs">
             {users.map((user, index) => {
               const member = channelMembers.find(m => m.user_id === user.id);
-              if (!member) return null;
-              const roleColor = getRoleColor(member);
+              const roleColor = member ? getRoleColor(member) : 'text-green-400';
               
               return (
                 <div key={`desktop-user-${user.id}-${index}`} className={roleColor}>

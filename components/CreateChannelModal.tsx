@@ -206,7 +206,8 @@ export default function CreateChannelModal({
                 onChange={(e) => {
                   const value = e.target.value;
                   if (value.startsWith('#')) {
-                    setName(value.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                    const cleanValue = value.slice(1).toLowerCase().replace(/[^a-z0-9-]/g, '');
+                    setName(cleanValue.slice(0, 20)); // Limit to 20 characters
                   }
                 }}
                 onKeyDown={(e) => {
@@ -244,7 +245,7 @@ export default function CreateChannelModal({
                 }}
                 className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                 placeholder="#channel-name"
-                maxLength={51}
+                maxLength={21}
                 pattern="#[a-z0-9-]+"
                 required
               />

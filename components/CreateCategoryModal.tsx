@@ -83,10 +83,10 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value.slice(0, 20))}
                 className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                 placeholder="ENTER CATEGORY NAME..."
-                maxLength={50}
+                maxLength={20}
                 required
               />
             </div>

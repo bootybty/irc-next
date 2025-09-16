@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useTheme, themes } from '@/components/ThemeProvider';
 
 interface User {
@@ -25,7 +25,19 @@ export const useUsers = (
 ) => {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
-  const getUserRoleColor = (targetUsername: string) => {
+  const getRoleColor = useCallback((member: ChannelMember) => {
+    if (member.channel_role) {
+      return member.channel_role.color;
+    }
+    switch (member.role) {
+      case 'owner': return currentTheme.roleOwner;
+      case 'moderator':
+      case 'admin': return currentTheme.roleModerator; 
+      default: return currentTheme.roleDefault;
+    }
+  }, [currentTheme.roleOwner, currentTheme.roleModerator, currentTheme.roleDefault]);
+
+  const getUserRoleColor = useCallback((targetUsername: string) => {
     const member = channelMembers.find(m => m.username.toLowerCase() === targetUsername.toLowerCase());
     if (member) {
       return getRoleColor(member);
@@ -40,19 +52,7 @@ export const useUsers = (
       : ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
     const colorIndex = targetUsername.charCodeAt(0) % userColors.length;
     return userColors[colorIndex];
-  };
-
-  const getRoleColor = (member: ChannelMember) => {
-    if (member.channel_role) {
-      return member.channel_role.color;
-    }
-    switch (member.role) {
-      case 'owner': return currentTheme.roleOwner;
-      case 'moderator':
-      case 'admin': return currentTheme.roleModerator; 
-      default: return currentTheme.roleDefault;
-    }
-  };
+  }, [channelMembers, currentTheme.muted, getRoleColor, theme]);
 
   const displayUsers = useMemo(() => {
     return users.map(user => {

@@ -1,28 +1,14 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-
-interface Message {
-  id: string;
-  username: string;
-  content: string;
-  timestamp: Date;
-  channel: string;
-}
-
-interface User {
-  id: string;
-  username: string;
-  currentChannel: string;
-  role?: string;
-}
+import type { Message, User, AuthUser, ChannelMember } from '@/types';
 
 export const useChat = (
   currentChannel: string,
   userId: string,
   username: string,
-  authUser: any,
-  channelMembers: any[],
+  authUser: AuthUser | null,
+  channelMembers: ChannelMember[],
   setCurrentMotd: (motd: string) => void,
   fetchChannelMembers: (channelId: string) => void
 ) => {
@@ -86,7 +72,7 @@ export const useChat = (
       }
     });
 
-    newChannel.on('broadcast', { event: 'moderation' }, (_payload) => {
+    newChannel.on('broadcast', { event: 'moderation' }, () => {
       fetchChannelMembers(channelId);
     });
 
@@ -103,7 +89,7 @@ export const useChat = (
       setMessages(prev => [...prev, motdMsg]);
     });
 
-    newChannel.on('broadcast', { event: 'typing' }, (_payload) => {
+    newChannel.on('broadcast', { event: 'typing' }, () => {
       // Handle typing indicator if needed
     });
 
@@ -129,11 +115,11 @@ export const useChat = (
       setUsers(usersWithRoles);
     });
 
-    newChannel.on('presence', { event: 'join' }, ({ newPresences: _newPresences }) => {
+    newChannel.on('presence', { event: 'join' }, () => {
       // Handle user join if needed
     });
 
-    newChannel.on('presence', { event: 'leave' }, ({ leftPresences: _leftPresences }) => {
+    newChannel.on('presence', { event: 'leave' }, () => {
       // Handle user leave if needed
     });
 

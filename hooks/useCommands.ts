@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { AuthUser, ChannelMember, ChannelRole, Message, MessageSetter } from '@/types';
 
 interface CommandSuggestion {
   command: string;
@@ -8,25 +10,32 @@ interface CommandSuggestion {
   requiresPermission?: string;
 }
 
+interface PendingDelete {
+  channelId: string;
+  channelName: string;
+  requestedBy: string;
+  requestedAt: Date;
+}
+
 export const useCommands = (
   currentChannel: string,
   userId: string,
   username: string,
-  authUser: any,
+  authUser: AuthUser | null,
   userRole: string,
   userPermissions: Record<string, boolean>,
-  channelMembers: any[],
-  channelRoles: any[],
-  setMessages: (setter: (prev: any[]) => any[]) => void,
-  setLocalMessages: (setter: (prev: any[]) => any[]) => void,
+  channelMembers: ChannelMember[],
+  channelRoles: ChannelRole[],
+  setMessages: MessageSetter,
+  setLocalMessages: MessageSetter,
   setCurrentTopic: (topic: string) => void,
   fetchChannelMembers: (channelId: string) => void,
-  channel: any
+  channel: RealtimeChannel | null
 ) => {
   const [showCommandSuggestions, setShowCommandSuggestions] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<CommandSuggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
-  const [pendingDeleteChannel, setPendingDeleteChannel] = useState<{id: string, name: string, requestedBy: string} | null>(null);
+  const [pendingDeleteChannel, setPendingDeleteChannel] = useState<PendingDelete | null>(null);
 
   const handleModerationCommand = async (command: string, args: string[]) => {
     if (!authUser || !userId) return false;
@@ -116,7 +125,7 @@ export const useCommands = (
               throw new Error(errorData.error || 'Ban failed');
             }
 
-            const result = await response.json();
+            await response.json();
             // console.log('Ban successful:', result);
 
             // Refresh channel members to remove banned user from UI
@@ -220,49 +229,49 @@ export const useCommands = (
     return true;
   };
 
-  const performChannelDeletion = async (channelToDelete: {id: string, name: string}) => {
+  const performChannelDeletion = async (channelToDelete: PendingDelete) => {
     if (!authUser || !userId) return;
 
     try {
       const { error: messagesError } = await supabase
         .from('messages')
         .delete()
-        .eq('channel_id', channelToDelete.id);
+        .eq('channel_id', channelToDelete.channelId);
 
       if (messagesError) throw messagesError;
 
       const { error: membersError } = await supabase
         .from('channel_members')
         .delete()
-        .eq('channel_id', channelToDelete.id);
+        .eq('channel_id', channelToDelete.channelId);
 
       if (membersError) throw membersError;
 
       const { error: rolesError } = await supabase
         .from('channel_roles')
         .delete()
-        .eq('channel_id', channelToDelete.id);
+        .eq('channel_id', channelToDelete.channelId);
 
       if (rolesError) throw rolesError;
 
       const { error: bansError } = await supabase
         .from('channel_bans')
         .delete()
-        .eq('channel_id', channelToDelete.id);
+        .eq('channel_id', channelToDelete.channelId);
 
       if (bansError) throw bansError;
 
       const { error: channelError } = await supabase
         .from('channels')
         .delete()
-        .eq('id', channelToDelete.id);
+        .eq('id', channelToDelete.channelId);
 
       if (channelError) throw channelError;
 
       const successMsg = {
         id: `delete_success_${Date.now()}`,
         username: 'SYSTEM',
-        content: `Channel #${channelToDelete.name.toUpperCase()} has been permanently deleted.`,
+        content: `Channel #${channelToDelete.channelName.toUpperCase()} has been permanently deleted.`,
         timestamp: new Date(),
         channel: 'system'
       };
@@ -720,11 +729,12 @@ export const useCommands = (
       setLocalMessages(prev => [...prev, confirmMsg]);
       
       // Get channel name for confirmation
-      const channelName = channel.getCurrentChannelName ? channel.getCurrentChannelName() : 'Unknown';
+      const channelName = 'current';
       setPendingDeleteChannel({
-        id: currentChannel,
-        name: channelName,
-        requestedBy: userId
+        channelId: currentChannel,
+        channelName: channelName,
+        requestedBy: userId,
+        requestedAt: new Date()
       });
       
       return true;
@@ -826,7 +836,7 @@ export const useCommands = (
           .filter(member => member.username.toLowerCase().startsWith(userInput))
           .map(member => {
             // Get the correct role color and display name
-            const displayRole = member.channel_role?.name || member.role || 'member';
+            const displayRole = member.role || 'member';
             return {
               command: member.username,
               description: `${member.username} (${displayRole})`

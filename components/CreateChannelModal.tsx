@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useTheme, themes } from '@/components/ThemeProvider';
 
 interface CreateChannelModalProps {
   categoryId?: string;
@@ -16,6 +17,8 @@ export default function CreateChannelModal({
   onClose, 
   onSuccess 
 }: CreateChannelModalProps) {
+  const { theme } = useTheme();
+  const currentTheme = themes[theme];
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState(categoryId || '');
@@ -55,7 +58,7 @@ export default function CreateChannelModal({
       }
 
       // Check if channel name already exists globally
-      const { data: existingChannel, error: checkError } = await supabase
+      const { data: existingChannel } = await supabase
         .from('channels')
         .select('id')
         .eq('name', cleanName)
@@ -183,20 +186,20 @@ export default function CreateChannelModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div className="bg-black border border-green-400 p-6 max-w-md w-full mx-4">
-        <div className="text-green-400 font-mono text-sm">
+      <div className={`${currentTheme.modal} ${currentTheme.border} border p-6 max-w-md w-full mx-4`}>
+        <div className={`${currentTheme.text} font-mono text-sm`}>
           <div className="text-center mb-6">
-            <div className="text-green-300 mb-2">
+            <div className={`${currentTheme.accent} mb-2`}>
               === CREATE NEW CHANNEL ===
             </div>
-            <div className="text-xs text-gray-400">
+            <div className={`text-xs ${currentTheme.muted}`}>
               START A NEW CONVERSATION
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-green-300 mb-1">CHANNEL NAME:</label>
+              <label className={`block ${currentTheme.accent} mb-1`}>CHANNEL NAME:</label>
               <input
                 type="text"
                 value={`#${name}`}
@@ -239,35 +242,35 @@ export default function CreateChannelModal({
                     }
                   }, 0);
                 }}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                 placeholder="#channel-name"
                 maxLength={51}
                 pattern="#[a-z0-9-]+"
                 required
               />
-              <div className="text-xs text-gray-400 mt-1">
+              <div className={`text-xs ${currentTheme.muted} mt-1`}>
                 LOWERCASE LETTERS, NUMBERS, AND HYPHENS ONLY
               </div>
             </div>
 
             <div>
-              <label className="block text-green-300 mb-1">TOPIC (OPTIONAL):</label>
+              <label className={`block ${currentTheme.accent} mb-1`}>TOPIC (OPTIONAL):</label>
               <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                 placeholder="DESCRIBE THIS CHANNEL..."
                 maxLength={200}
               />
             </div>
 
             <div>
-              <label className="block text-green-300 mb-1">CATEGORY:</label>
+              <label className={`block ${currentTheme.accent} mb-1`}>CATEGORY:</label>
               <select
                 value={selectedCategoryId}
                 onChange={(e) => setSelectedCategoryId(e.target.value)}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
               >
                 <option value="">NO CATEGORY</option>
                 {categories
@@ -282,13 +285,13 @@ export default function CreateChannelModal({
 
 
             {error && (
-              <div className="text-red-400 text-xs">
+              <div className={`${currentTheme.error} text-xs`}>
                 *** ERROR: {error.toUpperCase()}
               </div>
             )}
             
             {success && (
-              <div className="text-green-400 text-xs">
+              <div className={`${currentTheme.success} text-xs`}>
                 *** {success.toUpperCase()}
               </div>
             )}
@@ -297,14 +300,14 @@ export default function CreateChannelModal({
               <button
                 type="submit"
                 disabled={loading || !name.trim()}
-                className="flex-1 bg-green-400 text-black p-2 hover:bg-yellow-400 disabled:opacity-50"
+                className={`flex-1 bg-green-400 text-black p-2 ${currentTheme.button} disabled:opacity-50`}
               >
                 {loading ? 'CREATING...' : 'CREATE CHANNEL'}
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 border border-green-400 text-green-400 p-2 hover:border-yellow-400 hover:text-yellow-400"
+                className={`flex-1 ${currentTheme.error} ${currentTheme.button}`}
               >
                 CANCEL
               </button>

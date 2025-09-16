@@ -3,11 +3,12 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useTheme, themes } from '@/components/ThemeProvider';
 import type { ChannelCategory, ChannelMember, ChannelRole } from '@/lib/supabase';
+import type { AuthUser } from '@/types';
 
 // Define universal channels outside component to prevent re-creation
 const UNIVERSAL_CHANNELS = ['global', 'general', 'random', 'tech', 'gaming', 'music', 'news', 'help', 'projects', 'feedback'];
 
-export const useChannel = (userId: string, username: string, authUser: any) => {
+export const useChannel = (userId: string, username: string, authUser: AuthUser | null) => {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
   const searchParams = useSearchParams();
@@ -105,11 +106,19 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
         channels: sortedUniversalChannels,
         created_at: new Date().toISOString()
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      categories.push(universalCategory as any);
+      categories.push(universalCategory);
     }
     
-    categories.push(...(categoriesData || []));
+    categories.push(...(categoriesData || []).map(cat => ({
+      ...cat,
+      // @ts-expect-error Database type mismatch
+      created_at: cat.created_at || new Date().toISOString(),
+      channels: cat.channels?.map(ch => ({
+        ...ch,
+        // @ts-expect-error Database type mismatch  
+        created_at: ch.created_at || new Date().toISOString()
+      }))
+    })));
     
     if (uncategorizedChannels && uncategorizedChannels.length > 0) {
       const sortedUncategorized = uncategorizedChannels
@@ -125,12 +134,10 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
         channels: sortedUncategorized,
         created_at: new Date().toISOString()
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      categories.push(uncategorizedCategory as any);
+      categories.push(uncategorizedCategory);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setCategories(categories as any);
+    setCategories(categories);
     
     if (userId) {
       fetchUnreadMentions();

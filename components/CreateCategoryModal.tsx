@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useTheme, themes } from '@/components/ThemeProvider';
 
 interface CreateCategoryModalProps {
   onClose: () => void;
@@ -9,6 +10,8 @@ interface CreateCategoryModalProps {
 }
 
 export default function CreateCategoryModal({ onClose, onSuccess }: CreateCategoryModalProps) {
+  const { theme } = useTheme();
+  const currentTheme = themes[theme];
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -63,25 +66,25 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div className="bg-black border border-green-400 p-6 max-w-md w-full mx-4">
-        <div className="text-green-400 font-mono text-sm">
+      <div className={`${currentTheme.modal} ${currentTheme.border} border p-6 max-w-md w-full mx-4`}>
+        <div className={`${currentTheme.text} font-mono text-sm`}>
           <div className="text-center mb-6">
-            <div className="text-green-300 mb-2">
+            <div className={`${currentTheme.accent} mb-2`}>
               === CREATE NEW CATEGORY ===
             </div>
-            <div className="text-xs text-gray-400">
+            <div className={`text-xs ${currentTheme.muted}`}>
               ORGANIZE YOUR CHANNELS
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-green-300 mb-1">CATEGORY NAME:</label>
+              <label className={`block ${currentTheme.accent} mb-1`}>CATEGORY NAME:</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                 placeholder="ENTER CATEGORY NAME..."
                 maxLength={50}
                 required
@@ -89,13 +92,13 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
             </div>
 
             {error && (
-              <div className="text-red-400 text-xs">
+              <div className={`${currentTheme.error} text-xs`}>
                 *** ERROR: {error.toUpperCase()}
               </div>
             )}
             
             {success && (
-              <div className="text-green-400 text-xs">
+              <div className={`${currentTheme.success} text-xs`}>
                 *** {success.toUpperCase()}
               </div>
             )}
@@ -104,14 +107,14 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
               <button
                 type="submit"
                 disabled={loading || !name.trim()}
-                className="flex-1 bg-green-400 text-black p-2 hover:bg-yellow-400 disabled:opacity-50"
+                className={`flex-1 bg-green-400 text-black p-2 ${currentTheme.button} disabled:opacity-50`}
               >
                 {loading ? 'CREATING...' : 'CREATE CATEGORY'}
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 border border-green-400 text-green-400 p-2 hover:border-yellow-400 hover:text-yellow-400"
+                className={`flex-1 ${currentTheme.error} ${currentTheme.button}`}
               >
                 CANCEL
               </button>

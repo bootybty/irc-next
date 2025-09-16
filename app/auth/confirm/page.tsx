@@ -42,7 +42,7 @@ export default function ConfirmPage() {
           setStatus('error');
           setMessage('No confirmation token found. Please use the link from your email.');
         }
-      } catch (err) {
+      } catch {
         setStatus('error');
         setMessage('An unexpected error occurred.');
       }

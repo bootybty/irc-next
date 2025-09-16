@@ -551,13 +551,61 @@ export default function Home() {
           }
 
           const roleName = args[0];
-          const roleColor = args[1] || 'text-blue-400';
+          const roleColor = args[1];
 
           if (!roleName) {
             const errorMsg = {
               id: `error_${Date.now()}`,
               username: 'SYSTEM',
-              content: 'Usage: /createrole <name> [color] - Example: /createrole VIP text-purple-400',
+              content: 'Usage: /createrole <name> [color] - Example: /createrole VIP purple',
+              timestamp: new Date(),
+              server: currentServer,
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            setInputMessage('');
+            return;
+          }
+
+          if (!roleColor) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: 'Usage: /createrole <name> <color> - Use autocomplete to select a color',
+              timestamp: new Date(),
+              server: currentServer,
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            setInputMessage('');
+            return;
+          }
+
+          // Convert color name to Tailwind class
+          const colorMap: { [key: string]: string } = {
+            'red': 'text-red-400',
+            'orange': 'text-orange-400', 
+            'yellow': 'text-yellow-400',
+            'green': 'text-green-400',
+            'blue': 'text-blue-400',
+            'purple': 'text-purple-400',
+            'pink': 'text-pink-400',
+            'cyan': 'text-cyan-400',
+            'gray': 'text-gray-400',
+            'grey': 'text-gray-400',
+            'emerald': 'text-emerald-400',
+            'indigo': 'text-indigo-400',
+            'teal': 'text-teal-400'
+          };
+
+          const finalColor = colorMap[roleColor.toLowerCase()] || roleColor;
+
+          // Validate if it's a proper Tailwind color class
+          if (!finalColor.startsWith('text-') && !colorMap[roleColor.toLowerCase()]) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `Invalid color "${roleColor}". Use color names like: red, blue, purple, green, etc.`,
               timestamp: new Date(),
               server: currentServer,
               channel: currentChannel
@@ -573,7 +621,7 @@ export default function Home() {
               .insert({
                 channel_id: currentChannel,
                 name: roleName,
-                color: roleColor,
+                color: finalColor,
                 permissions: {},
                 sort_order: 50,
                 created_by: userId
@@ -926,6 +974,17 @@ export default function Home() {
     }
   };
 
+  const getUserRoleColor = (username: string) => {
+    const member = channelMembers.find(m => m.username.toLowerCase() === username.toLowerCase());
+    if (member) {
+      return getRoleColor(member);
+    }
+    // Fallback to default user color if not found in channel members
+    const userColors = ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
+    const colorIndex = username.charCodeAt(0) % userColors.length;
+    return userColors[colorIndex];
+  };
+
   const getAvailableCommands = () => {
     const allCommands = [
       { command: 'help', description: 'Show available commands' },
@@ -934,7 +993,7 @@ export default function Home() {
       { command: 'kick <user> [reason]', description: 'Remove user from channel', requiresPermission: 'can_kick' },
       { command: 'ban <user> [reason]', description: 'Ban user from channel', requiresPermission: 'can_ban' },
       { command: 'setrole <user> <role>', description: 'Assign role to user', requiresPermission: 'can_manage_roles' },
-      { command: 'createrole <name> <color>', description: 'Create new custom role', requiresRole: 'Owner' },
+      { command: 'createrole <name> [color]', description: 'Create new custom role', requiresRole: 'Owner' },
     ];
 
     // Filter commands based on user permissions and role
@@ -959,20 +1018,54 @@ export default function Home() {
       return;
     }
 
-    const commandPart = input.slice(1).toLowerCase();
+    const commandPart = input.slice(1);
+    const parts = commandPart.split(' ');
+    const command = parts[0].toLowerCase();
     const availableCommands = getAvailableCommands();
-    
-    if (commandPart === '') {
-      setCommandSuggestions(availableCommands);
-      setShowCommandSuggestions(true);
-      setSelectedSuggestion(0);
-    } else {
-      const filtered = availableCommands.filter(cmd => 
-        cmd.command.toLowerCase().startsWith(commandPart)
+
+    // Check if we're typing a color for /createrole
+    if (command === 'createrole' && parts.length === 3) {
+      const colorInput = parts[2].toLowerCase();
+      const colorOptions = [
+        { command: 'red', description: '🔴 Red color for the role' },
+        { command: 'orange', description: '🟠 Orange color for the role' },
+        { command: 'yellow', description: '🟡 Yellow color for the role' },
+        { command: 'green', description: '🟢 Green color for the role' },
+        { command: 'blue', description: '🔵 Blue color for the role' },
+        { command: 'purple', description: '🟣 Purple color for the role' },
+        { command: 'pink', description: '🩷 Pink color for the role' },
+        { command: 'cyan', description: '🔷 Cyan color for the role' },
+        { command: 'gray', description: '⚪ Gray color for the role' },
+        { command: 'emerald', description: '💚 Emerald color for the role' },
+        { command: 'indigo', description: '🟦 Indigo color for the role' },
+        { command: 'teal', description: '🔸 Teal color for the role' }
+      ];
+
+      const filteredColors = colorOptions.filter(color => 
+        color.command.toLowerCase().startsWith(colorInput)
       );
-      setCommandSuggestions(filtered);
-      setShowCommandSuggestions(filtered.length > 0);
+
+      setCommandSuggestions(filteredColors);
+      setShowCommandSuggestions(filteredColors.length > 0);
       setSelectedSuggestion(0);
+      return;
+    }
+    
+    if (commandPart === '' || parts.length === 1) {
+      if (commandPart === '') {
+        setCommandSuggestions(availableCommands);
+        setShowCommandSuggestions(true);
+        setSelectedSuggestion(0);
+      } else {
+        const filtered = availableCommands.filter(cmd => 
+          cmd.command.toLowerCase().startsWith(command)
+        );
+        setCommandSuggestions(filtered);
+        setShowCommandSuggestions(filtered.length > 0);
+        setSelectedSuggestion(0);
+      }
+    } else {
+      setShowCommandSuggestions(false);
     }
   };
 
@@ -1004,8 +1097,25 @@ export default function Home() {
         }
         if (commandSuggestions[selectedSuggestion]) {
           const selectedCommand = commandSuggestions[selectedSuggestion];
-          const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
-          setInputMessage(commandWithSlash + ' ');
+          
+          // Check if we're selecting a color for /createrole
+          if (inputMessage.includes('/createrole ') && !selectedCommand.command.includes(' ')) {
+            // This is a color selection
+            const parts = inputMessage.split(' ');
+            if (parts.length === 3) {
+              // Replace the partial color with the selected color
+              const newMessage = `${parts[0]} ${parts[1]} ${selectedCommand.command}`;
+              setInputMessage(newMessage);
+            } else {
+              // Add the color to the command
+              setInputMessage(inputMessage + selectedCommand.command);
+            }
+          } else {
+            // Regular command selection
+            const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
+            setInputMessage(commandWithSlash + ' ');
+          }
+          
           setShowCommandSuggestions(false);
           if (e.key === 'Tab') {
             return; // Don't send message on tab
@@ -1020,8 +1130,25 @@ export default function Home() {
 
   const selectSuggestion = (index: number) => {
     const selectedCommand = commandSuggestions[index];
-    const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
-    setInputMessage(commandWithSlash + ' ');
+    
+    // Check if we're selecting a color for /createrole
+    if (inputMessage.includes('/createrole ') && !selectedCommand.command.includes(' ')) {
+      // This is a color selection
+      const parts = inputMessage.split(' ');
+      if (parts.length === 3) {
+        // Replace the partial color with the selected color
+        const newMessage = `${parts[0]} ${parts[1]} ${selectedCommand.command}`;
+        setInputMessage(newMessage);
+      } else {
+        // Add the color to the command
+        setInputMessage(inputMessage + selectedCommand.command);
+      }
+    } else {
+      // Regular command selection
+      const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
+      setInputMessage(commandWithSlash + ' ');
+    }
+    
     setShowCommandSuggestions(false);
   };
 
@@ -1307,11 +1434,10 @@ export default function Home() {
               <div className="hidden sm:block">*** JOINING #{getCurrentChannelName().toUpperCase()}</div>
               {messages.map(message => {
                 const time = new Date(message.timestamp).toLocaleTimeString('en-US', { hour12: false });
-                const userColors = ['text-yellow-400', 'text-cyan-400', 'text-magenta-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
-                const colorIndex = message.username.charCodeAt(0) % userColors.length;
+                const userColor = getUserRoleColor(message.username);
                 return (
-                  <div key={message.id} className={`${userColors[colorIndex]} break-words`}>
-                    <span className="hidden sm:inline">{time} </span>&lt;{message.username.toUpperCase()}&gt; {message.content.toUpperCase()}
+                  <div key={message.id} className="text-green-400 break-words">
+                    <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {message.content.toUpperCase()}
                   </div>
                 );
               })}

@@ -56,6 +56,8 @@ export default function Home() {
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<number>(0);
   const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [channelToDelete, setChannelToDelete] = useState<{id: string, name: string} | null>(null);
 
   // Fetch categories with channels from Supabase
   const fetchCategoriesAndChannels = useCallback(async () => {
@@ -505,7 +507,7 @@ export default function Home() {
           const helpMsg = {
             id: `help_${Date.now()}`,
             username: 'SYSTEM',
-            content: 'Available commands: /kick <user> [reason], /ban <user> [reason], /mod <user>, /unmod <user>, /motd <message>, /info',
+            content: 'Available commands: /kick <user> [reason], /ban <user> [reason], /mod <user>, /unmod <user>, /motd <message>, /delete, /info',
             timestamp: new Date(),
                 channel: currentChannel
           };
@@ -761,6 +763,47 @@ export default function Home() {
               content: `Error setting MOTD: ${error instanceof Error ? error.message : 'Unknown error'}`,
               timestamp: new Date(),
                     channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+          }
+
+          setInputMessage('');
+          return;
+        }
+
+        if (command === 'delete') {
+          // Check if user is channel owner
+          if (userRole !== 'Owner') {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: 'Access denied. Only channel owners can delete channels.',
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            setInputMessage('');
+            return;
+          }
+
+          // Get current channel info for confirmation
+          const currentChannelInfo = categories
+            .flatMap(cat => cat.channels || [])
+            .find(ch => ch.id === currentChannel);
+
+          if (currentChannelInfo) {
+            setChannelToDelete({
+              id: currentChannel,
+              name: currentChannelInfo.name
+            });
+            setShowDeleteConfirmation(true);
+          } else {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: 'Error: Could not find current channel information.',
+              timestamp: new Date(),
+              channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
           }
@@ -1161,6 +1204,7 @@ export default function Home() {
       { command: 'ban <user> [reason]', description: 'Ban user from channel', requiresPermission: 'can_ban' },
       { command: 'setrole <user> <role>', description: 'Assign role to user', requiresPermission: 'can_manage_roles' },
       { command: 'createrole <name> [color]', description: 'Create new custom role', requiresRole: 'Owner' },
+      { command: 'delete', description: 'Delete current channel (PERMANENT)', requiresRole: 'Owner' },
     ];
 
     // Filter commands based on user permissions and role
@@ -1331,6 +1375,93 @@ export default function Home() {
   const handleCreationSuccess = () => {
     // Refresh categories and channels data
     fetchCategoriesAndChannels();
+  };
+
+  const handleDeleteChannel = async () => {
+    if (!channelToDelete || !authUser || !userId) return;
+
+    try {
+      // Delete in cascade order: messages, members, roles, bans, then channel
+      
+      // 1. Delete all messages in the channel
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('channel_id', channelToDelete.id);
+
+      if (messagesError) throw messagesError;
+
+      // 2. Delete all channel members
+      const { error: membersError } = await supabase
+        .from('channel_members')
+        .delete()
+        .eq('channel_id', channelToDelete.id);
+
+      if (membersError) throw membersError;
+
+      // 3. Delete all channel roles
+      const { error: rolesError } = await supabase
+        .from('channel_roles')
+        .delete()
+        .eq('channel_id', channelToDelete.id);
+
+      if (rolesError) throw rolesError;
+
+      // 4. Delete all channel bans
+      const { error: bansError } = await supabase
+        .from('channel_bans')
+        .delete()
+        .eq('channel_id', channelToDelete.id);
+
+      if (bansError) throw bansError;
+
+      // 5. Finally delete the channel itself
+      const { error: channelError } = await supabase
+        .from('channels')
+        .delete()
+        .eq('id', channelToDelete.id);
+
+      if (channelError) throw channelError;
+
+      // Show success message
+      const successMsg = {
+        id: `delete_success_${Date.now()}`,
+        username: 'SYSTEM',
+        content: `Channel #${channelToDelete.name.toUpperCase()} has been permanently deleted.`,
+        timestamp: new Date(),
+        channel: 'system'
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+      // Close confirmation dialog
+      setShowDeleteConfirmation(false);
+      setChannelToDelete(null);
+
+      // Refresh categories and switch to first available channel
+      await fetchCategoriesAndChannels();
+      
+      // If we just deleted the current channel, switch to first available
+      setTimeout(() => {
+        const firstAvailableChannel = categories
+          .flatMap(cat => cat.channels || [])
+          .find(ch => ch.id !== channelToDelete.id);
+        
+        if (firstAvailableChannel) {
+          switchChannel(firstAvailableChannel.id);
+        }
+      }, 500);
+
+    } catch (error) {
+      console.error('Error deleting channel:', error);
+      const errorMsg = {
+        id: `delete_error_${Date.now()}`,
+        username: 'SYSTEM',
+        content: `Failed to delete channel: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date(),
+        channel: currentChannel
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    }
   };
 
   if (showAuthModal) {
@@ -1702,6 +1833,58 @@ export default function Home() {
           onClose={() => setShowCreateChannelModal(false)}
           onSuccess={handleCreationSuccess}
         />
+      )}
+
+      {/* Delete Channel Confirmation Modal */}
+      {showDeleteConfirmation && channelToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-black border-2 border-red-400 p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-4">
+              <div className="text-red-400 text-xl mb-2">⚠️ DANGER ZONE ⚠️</div>
+              <div className="text-green-300 mb-2">DELETE CHANNEL</div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="text-yellow-400 text-center">
+                YOU ARE ABOUT TO PERMANENTLY DELETE:
+              </div>
+              <div className="text-center text-xl">
+                <span className="text-red-400">#{channelToDelete.name.toUpperCase()}</span>
+              </div>
+              <div className="text-red-400 text-center text-sm">
+                THIS WILL DELETE ALL:
+              </div>
+              <div className="text-gray-400 text-center text-sm">
+                • Messages • Members • Roles • Bans
+              </div>
+              <div className="text-red-400 text-center font-bold">
+                THIS CANNOT BE UNDONE!
+              </div>
+              
+              <div className="text-yellow-400 text-center mt-6">
+                ARE YOU SURE? TYPE &apos;Y&apos; TO CONFIRM OR &apos;N&apos; TO CANCEL:
+              </div>
+              
+              <div className="flex gap-4 justify-center mt-4">
+                <button
+                  onClick={handleDeleteChannel}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 border border-red-400"
+                >
+                  Y - DELETE FOREVER
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirmation(false);
+                    setChannelToDelete(null);
+                  }}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 border border-gray-400"
+                >
+                  N - CANCEL
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

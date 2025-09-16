@@ -1296,16 +1296,8 @@ export default function Home() {
     <div className="h-screen w-screen bg-black text-green-400 font-mono text-xs sm:text-sm overflow-hidden fixed inset-0 flex flex-col">
       {/* Terminal Title */}
       <div className="border-b border-green-400 p-2 flex-shrink-0">
-        <div className="text-center hidden sm:block">
-          ████████ ██████   ██████     ██████ ██   ██  █████  ████████ 
-          ██       ██   ██ ██          ██     ██   ██ ██   ██    ██    
-          ██████   ██████  ██          ██     ███████ ███████    ██    
-               ██  ██   ██ ██          ██     ██   ██ ██   ██    ██    
-          ████████ ██   ██  ██████     ██████ ██   ██ ██   ██ ████████ 
-        </div>
-        
-        {/* Auth section at bottom of header */}
-        <div className="flex justify-end mt-2 text-xs gap-2">
+        {/* Auth section */}
+        <div className="flex justify-end gap-2">
           {authUser ? (
             <>
               <span className="text-yellow-400">{username.toUpperCase()}</span>
@@ -1584,7 +1576,7 @@ export default function Home() {
                 <div className="text-green-300">USERS ({users.length}):</div>
                 <button onClick={() => setShowUsers(false)} className="text-red-400">[X]</button>
               </div>
-              <div className="space-y-1 text-xs">
+              <div className="space-y-1">
                 {users.map((user, index) => {
                   const member = channelMembers.find(m => m.user_id === user.id);
                   const roleColor = member ? getRoleColor(member) : 'text-green-400';
@@ -1601,9 +1593,9 @@ export default function Home() {
         )}
 
         {/* Desktop User List */}
-        <div className="hidden lg:block w-48 xl:w-56 border-l border-green-400 p-4 flex-shrink-0 overflow-auto">
+        <div className="hidden lg:block w-64 lg:w-72 border-l border-green-400 p-4 flex-shrink-0 overflow-auto">
           <div className="text-green-300 mb-4">USERS ({users.length}):</div>
-          <div className="space-y-1 text-xs">
+          <div className="space-y-1">
             {users.map((user, index) => {
               const member = channelMembers.find(m => m.user_id === user.id);
               const roleColor = member ? getRoleColor(member) : 'text-green-400';

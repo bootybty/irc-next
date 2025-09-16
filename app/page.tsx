@@ -64,6 +64,7 @@ export default function Home() {
   const [commandSuggestions, setCommandSuggestions] = useState<Array<{command: string, description: string, requiresRole?: string}>>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<number>(0);
+  const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
 
   useEffect(() => {
     // Check for existing session
@@ -204,6 +205,23 @@ export default function Home() {
       console.log('Received moderation event:', payload);
       // Refresh channel members when moderation happens
       fetchChannelMembers(channelId);
+    });
+
+    // Listen for MOTD updates
+    newChannel.on('broadcast', { event: 'motd_update' }, (payload) => {
+      console.log('Received MOTD update:', payload);
+      setCurrentMotd(payload.payload.motd.toUpperCase());
+      
+      // Show MOTD update message
+      const motdMsg = {
+        id: `motd_update_${Date.now()}`,
+        username: 'SYSTEM',
+        content: `MOTD updated by ${payload.payload.set_by}: ${payload.payload.motd}`,
+        timestamp: new Date(),
+        server: serverId,
+        channel: channelId
+      };
+      setMessages(prev => [...prev, motdMsg]);
     });
 
     // Listen for typing indicators  
@@ -511,7 +529,7 @@ export default function Home() {
           const helpMsg = {
             id: `help_${Date.now()}`,
             username: 'SYSTEM',
-            content: 'Available commands: /kick <user> [reason], /ban <user> [reason], /mod <user>, /unmod <user>, /info',
+            content: 'Available commands: /kick <user> [reason], /ban <user> [reason], /mod <user>, /unmod <user>, /motd <message>, /info',
             timestamp: new Date(),
             server: currentServer,
             channel: currentChannel
@@ -539,6 +557,7 @@ export default function Home() {
         }
 
         if (command === 'roles') {
+          console.log('🔍 Checking roles command - userRole:', userRole, 'type:', typeof userRole);
           if (userRole !== 'Owner') {
             const errorMsg = {
               id: `error_${Date.now()}`,
@@ -691,6 +710,94 @@ export default function Home() {
               id: `error_${Date.now()}`,
               username: 'SYSTEM',
               content: `Error creating role: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+              server: currentServer,
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+          }
+
+          setInputMessage('');
+          return;
+        }
+
+        if (command === 'motd') {
+          // Check if user is channel owner
+          if (userRole !== 'Owner') {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: 'Access denied. Only channel owners can set MOTD.',
+              timestamp: new Date(),
+              server: currentServer,
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            setInputMessage('');
+            return;
+          }
+
+          const newMotd = args.join(' ');
+          
+          if (!newMotd) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: 'Usage: /motd <message> - Example: /motd Welcome to our awesome channel!',
+              timestamp: new Date(),
+              server: currentServer,
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            setInputMessage('');
+            return;
+          }
+
+          try {
+            const { error } = await supabase
+              .from('channels')
+              .update({ 
+                motd: newMotd,
+                motd_set_by: userId,
+                motd_set_at: new Date().toISOString()
+              })
+              .eq('id', currentChannel);
+
+            if (error) {
+              const errorMsg = {
+                id: `error_${Date.now()}`,
+                username: 'SYSTEM',
+                content: `Failed to set MOTD: ${error.message}`,
+                timestamp: new Date(),
+                server: currentServer,
+                channel: currentChannel
+              };
+              setMessages(prev => [...prev, errorMsg]);
+            } else {
+              const successMsg = {
+                id: `success_${Date.now()}`,
+                username: 'SYSTEM',
+                content: `MOTD updated by ${username}: ${newMotd}`,
+                timestamp: new Date(),
+                server: currentServer,
+                channel: currentChannel
+              };
+              setMessages(prev => [...prev, successMsg]);
+
+              // Broadcast MOTD update to all users in channel
+              if (channel) {
+                await channel.send({
+                  type: 'broadcast',
+                  event: 'motd_update',
+                  payload: { motd: newMotd, set_by: username }
+                });
+              }
+            }
+          } catch (error) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `Error setting MOTD: ${error instanceof Error ? error.message : 'Unknown error'}`,
               timestamp: new Date(),
               server: currentServer,
               channel: currentChannel
@@ -873,6 +980,19 @@ export default function Home() {
     setUsers([]); // Clear users when switching
     // Keep existing channelMembers to avoid flashing, will be updated by fetchChannelMembers
     
+    // Fetch channel info including MOTD
+    const { data: channelData } = await supabase
+      .from('channels')
+      .select('name, topic, motd')
+      .eq('id', channelId)
+      .single();
+
+    if (channelData?.motd) {
+      setCurrentMotd(channelData.motd.toUpperCase());
+    } else {
+      setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
+    }
+
     // Fetch existing messages for this channel (available to all users)
     const { data: existingMessages } = await supabase
       .from('messages')
@@ -979,11 +1099,29 @@ export default function Home() {
       if (authUser && userId) {
         const currentUserMember = members.find(m => m.user_id === userId);
         if (currentUserMember?.channel_role) {
+          console.log('🔍 Setting userRole to:', currentUserMember.channel_role.name);
+          console.log('🔍 Full channel_role object:', currentUserMember.channel_role);
           setUserRole(currentUserMember.channel_role.name);
           setUserPermissions(currentUserMember.channel_role.permissions);
         } else {
-          setUserRole('Member');
-          setUserPermissions({});
+          console.log('🔍 No channel_role found, checking legacy role field');
+          console.log('🔍 Current user member:', currentUserMember);
+          console.log('🔍 Legacy role field:', currentUserMember?.role);
+          
+          // Fallback to legacy role field if no channel_role
+          if (currentUserMember?.role) {
+            // Convert legacy role to proper case
+            const legacyRole = currentUserMember.role;
+            const properRole = legacyRole === 'owner' ? 'Owner' : 
+                              legacyRole === 'moderator' ? 'Moderator' :
+                              legacyRole === 'admin' ? 'Admin' : 'Member';
+            console.log('🔍 Using legacy role, converting', legacyRole, 'to', properRole);
+            setUserRole(properRole);
+            setUserPermissions(legacyRole === 'owner' ? {can_kick: true, can_ban: true, can_manage_roles: true} : {});
+          } else {
+            setUserRole('Member');
+            setUserPermissions({});
+          }
         }
       }
     }
@@ -1067,6 +1205,7 @@ export default function Home() {
     const allCommands = [
       { command: 'help', description: 'Show available commands' },
       { command: 'info', description: 'Show channel information' },
+      { command: 'motd <message>', description: 'Set channel Message of the Day', requiresRole: 'Owner' },
       { command: 'roles', description: 'List all channel roles', requiresRole: 'Owner' },
       { command: 'kick <user> [reason]', description: 'Remove user from channel', requiresPermission: 'can_kick' },
       { command: 'ban <user> [reason]', description: 'Ban user from channel', requiresPermission: 'can_ban' },
@@ -1498,7 +1637,7 @@ export default function Home() {
             scrollbarColor: '#1f2937 #000000'
           }}>
             <div className="space-y-1">
-              <div className="hidden sm:block">*** MOTD: WELCOME TO THE RETRO IRC EXPERIENCE ***</div>
+              <div className="hidden sm:block">*** MOTD: {currentMotd} ***</div>
               <div className="hidden sm:block">*** CONNECTING TO {servers.find(s => s.id === currentServer)?.name.toUpperCase()}:6667</div>
               <div className="hidden sm:block">*** JOINING #{getCurrentChannelName().toUpperCase()}</div>
               {!authUser && (

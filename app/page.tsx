@@ -1918,9 +1918,9 @@ export default function Home() {
           {/* Input Line */}
           <div className="border-t border-green-400 p-2">
             {authUser ? (
-              <div className="flex items-end">
-                <span className="text-green-300 hidden sm:inline pb-1">[#{getCurrentChannelName().toUpperCase()}]&gt; </span>
-                <span className="text-green-300 sm:hidden pb-1">&gt; </span>
+              <div className="flex items-center">
+                <span className="text-green-300 hidden sm:inline">[#{getCurrentChannelName().toUpperCase()}]&gt; </span>
+                <span className="text-green-300 sm:hidden">&gt; </span>
                 <textarea 
                   value={inputMessage}
                   onChange={(e) => handleInputChange(e.target.value)}
@@ -1931,14 +1931,16 @@ export default function Home() {
                       sendMessage();
                     }
                   }}
-                  className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600 resize-none overflow-y-auto"
+                  className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600 resize-none overflow-y-auto flex items-center"
                   placeholder={userRole === 'owner' || userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
                   rows={1}
                   style={{
                     minHeight: '1.25rem',
                     maxHeight: '6rem',
                     scrollbarWidth: 'thin',
-                    scrollbarColor: '#1f2937 #000000'
+                    scrollbarColor: '#1f2937 #000000',
+                    paddingTop: '0.125rem',
+                    paddingBottom: '0.125rem'
                   }}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement;
@@ -1946,7 +1948,6 @@ export default function Home() {
                     target.style.height = Math.min(target.scrollHeight, 96) + 'px';
                   }}
                 />
-                <span className="animate-pulse text-green-300 pb-1">█</span>
               </div>
             ) : (
               <div className="flex justify-center">

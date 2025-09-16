@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, startTransition } from 'react';
+import { useEffect, useState, useCallback, startTransition, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -25,8 +25,8 @@ interface Message {
 }
 
 
-export default function Home() {
-  const router = useRouter();
+function HomeContent() {
+  // const router = useRouter(); // Not currently used but kept for future URL routing
   const searchParams = useSearchParams();
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [connected, setConnected] = useState(false);
@@ -57,8 +57,8 @@ export default function Home() {
   const [currentTopic, setCurrentTopic] = useState<string>('');
   const [joinStatus, setJoinStatus] = useState<'joining' | 'success' | 'failed' | null>(null);
   const [joiningChannelName, setJoiningChannelName] = useState<string>('');
-  const [switchingChannel, setSwitchingChannel] = useState<string>('');
-  const [urlUpdateTimeout, setUrlUpdateTimeout] = useState<NodeJS.Timeout | null>(null);
+  // const [switchingChannel, setSwitchingChannel] = useState<string>(''); // Not currently used
+  // const [urlUpdateTimeout, setUrlUpdateTimeout] = useState<NodeJS.Timeout | null>(null); // Not currently used
   const [pendingDeleteChannel, setPendingDeleteChannel] = useState<{id: string, name: string, requestedBy: string} | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [unreadMentions, setUnreadMentions] = useState<Record<string, number>>({});
@@ -1434,14 +1434,12 @@ export default function Home() {
       
       // Set success status if we made it this far
       setJoinStatus('success');
-      setSwitchingChannel('');
       
       // Only update currentChannel when everything is loaded to prevent jiggling
       setCurrentChannel(channelId);
     } catch (error) {
       console.error('Error switching channel:', error);
       setJoinStatus('failed');
-      setSwitchingChannel('');
       // Still update currentChannel even on error to show something
       setCurrentChannel(channelId);
     }
@@ -2393,5 +2391,13 @@ export default function Home() {
       )}
 
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-black text-green-400 flex items-center justify-center">Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }

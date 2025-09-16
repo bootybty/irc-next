@@ -557,7 +557,7 @@ function HomeContent() {
                 const userColor = users.getUserRoleColor(message.username);
                 return (
                   <div key={message.id} className="text-green-400 break-words">
-                    <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {formatMessageContent(message.content.toUpperCase())}
+                    <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {formatMessageContent(message.content)}
                   </div>
                 );
               })}

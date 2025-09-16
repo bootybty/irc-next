@@ -15,11 +15,13 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       if (isLogin) {
@@ -34,7 +36,7 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
         if (data.user) {
           // Get profile that was auto-created by trigger
           const { data: profile } = await supabase
-            .from('profiles')
+            .from('users')
             .select('*')
             .eq('id', data.user.id)
             .single();
@@ -46,13 +48,38 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
           }
         }
       } else {
-        // Sign up - let trigger handle profile creation
+        // Sign up - first check for duplicates
+        const trimmedUsername = username.trim();
+        
+        // Check if username already exists
+        const { data: existingUsername } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', trimmedUsername)
+          .maybeSingle();
+        
+        if (existingUsername) {
+          throw new Error('Username already exists. Please choose a different username.');
+        }
+        
+        // Check if email already exists  
+        const { data: existingEmail } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+        
+        if (existingEmail) {
+          throw new Error('Email already registered. Please use a different email or try logging in.');
+        }
+        
+        // All checks passed - proceed with signup
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
-              username: username.trim(),
+              username: trimmedUsername,
             }
           }
         });
@@ -62,13 +89,14 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
         if (data.user) {
           // Check if user needs email confirmation
           if (!data.session) {
-            setError('Please check your email to confirm your account before logging in.');
+            setSuccess('Registration successful! Please check your email and click the confirmation link, then return here to log in.');
+            setLoading(false);
             return;
           }
 
           // Profile should be auto-created by trigger
           const { data: profile } = await supabase
-            .from('profiles')
+            .from('users')
             .select('*')
             .eq('id', data.user.id)
             .single();
@@ -169,6 +197,12 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
               </div>
             )}
 
+            {success && (
+              <div className="text-green-400 text-xs">
+                *** SUCCESS: {success.toUpperCase()}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading || !email.trim() || !password.trim() || (!isLogin && !username.trim())}
@@ -183,6 +217,7 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError('');
+                  setSuccess('');
                   setEmail('');
                   setPassword('');
                   setUsername('');

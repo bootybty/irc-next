@@ -37,7 +37,7 @@ export default function CreateChannelModal({
       }
 
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('users')
         .select('username')
         .eq('id', user.id)
         .single();
@@ -55,11 +55,11 @@ export default function CreateChannelModal({
       }
 
       // Check if channel name already exists globally
-      const { data: existingChannel } = await supabase
+      const { data: existingChannel, error: checkError } = await supabase
         .from('channels')
         .select('id')
         .eq('name', cleanName)
-        .single();
+        .maybeSingle();
 
       if (existingChannel) {
         throw new Error('A channel with this name already exists');
@@ -142,20 +142,29 @@ export default function CreateChannelModal({
         if (memberRoleError) throw memberRoleError;
       }
 
-      // Add creator as Owner in channel_members
-      const { error: memberError } = await supabase
+      // Add creator as Owner in channel_members (check if already exists first)
+      const { data: existingMember } = await supabase
         .from('channel_members')
-        .insert([
-          {
-            channel_id: channelId,
-            user_id: user.id,
-            username: profile.username,
-            role: 'owner', // Legacy field
-            role_id: ownerRoleId,
-          },
-        ]);
+        .select('id')
+        .eq('channel_id', channelId)
+        .eq('user_id', user.id)
+        .single();
 
-      if (memberError) throw memberError;
+      if (!existingMember) {
+        const { error: memberError } = await supabase
+          .from('channel_members')
+          .insert([
+            {
+              channel_id: channelId,
+              user_id: user.id,
+              username: profile.username,
+              role: 'owner', // Legacy field
+              role_id: ownerRoleId,
+            },
+          ]);
+
+        if (memberError) throw memberError;
+      }
 
       // Show success message briefly before closing
       setSuccess(`Channel #${cleanName} created successfully!`);

@@ -11,13 +11,26 @@ export const useAuth = () => {
   const [username, setUsername] = useState('');
   const [userId, setUserId] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
+      // Check if this is an email confirmation callback
+      const hashFragment = window.location.hash;
+      if (hashFragment && (hashFragment.includes('access_token') || hashFragment.includes('type=signup'))) {
+        // This is an email confirmation - log out the user and show confirmation popup
+        await supabase.auth.signOut();
+        setEmailConfirmed(true);
+        // Don't show auth modal immediately - wait for popup to be dismissed
+        // Clear the hash to prevent re-processing
+        window.history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('users')
           .select('*')
           .eq('id', session.user.id)
           .single();
@@ -55,6 +68,8 @@ export const useAuth = () => {
     userId,
     showAuthModal,
     setShowAuthModal,
+    emailConfirmed,
+    setEmailConfirmed,
     handleAuthSuccess,
     handleLogout
   };

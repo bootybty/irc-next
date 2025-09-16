@@ -52,13 +52,17 @@ function HomeContent() {
     return parts.map((part, index) => {
       if (index % 2 === 1) {
         const isMentioningSelf = part.toLowerCase() === auth.username.toLowerCase();
+        
+        // Use the same color logic as the rest of the chat
+        const userColor = users.getUserRoleColor(part);
+        
         return (
           <span
             key={index}
             className={`font-bold ${
               isMentioningSelf 
-                ? 'bg-yellow-600 text-black px-1 rounded' 
-                : 'text-cyan-400'
+                ? `${userColor} bg-green-950 bg-opacity-40 px-1 rounded-sm` 
+                : `${userColor} bg-gray-800 bg-opacity-50 px-1 rounded-sm`
             }`}
           >
             @{part}
@@ -132,9 +136,50 @@ function HomeContent() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Handle Enter for sending messages
-    if (e.key === 'Enter' && !e.shiftKey && !commands.showCommandSuggestions) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      
+      // If command suggestions are shown and user presses Enter, select the highlighted suggestion
+      if (commands.showCommandSuggestions && commands.commandSuggestions[commands.selectedSuggestion]) {
+        const selectedCommand = commands.commandSuggestions[commands.selectedSuggestion];
+        
+        // Don't handle selection for help-only suggestions
+        if (selectedCommand.command === '__help_only__') {
+          commands.setShowCommandSuggestions(false);
+          sendMessage();
+          return;
+        }
+        
+        const parts = ui.inputMessage.split(' ');
+        const currentCommand = parts[0]?.slice(1); // Remove the "/"
+        
+        // Handle color suggestions for /createrole
+        if (ui.inputMessage.includes('/createrole ') && !selectedCommand.command.includes(' ')) {
+          if (parts.length === 3) {
+            const newMessage = `${parts[0]} ${parts[1]} ${selectedCommand.command}`;
+            ui.setInputMessage(newMessage);
+          } else {
+            ui.setInputMessage(ui.inputMessage + selectedCommand.command);
+          }
+        }
+        // Handle user/role suggestions for user commands
+        else if (['ban', 'setrole', 'mod', 'unmod'].includes(currentCommand) && parts.length >= 2) {
+          // Replace the current incomplete argument with the selected suggestion
+          const newParts = [...parts];
+          newParts[parts.length - 1] = selectedCommand.command;
+          ui.setInputMessage(newParts.join(' ') + ' ');
+        }
+        // Handle regular command suggestions
+        else {
+          const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
+          ui.setInputMessage(commandWithSlash + ' ');
+        }
+        
+        commands.setShowCommandSuggestions(false);
+      } else {
+        // No suggestions or none selected - send the message normally
+        sendMessage();
+      }
       return;
     }
 
@@ -161,15 +206,36 @@ function HomeContent() {
         if (commands.commandSuggestions[commands.selectedSuggestion]) {
           const selectedCommand = commands.commandSuggestions[commands.selectedSuggestion];
           
+          // Don't handle selection for help-only suggestions
+          if (selectedCommand.command === '__help_only__') {
+            if (e.key === 'Tab') {
+              return;
+            }
+            // For Enter, continue to send message
+            break;
+          }
+          
+          const parts = ui.inputMessage.split(' ');
+          const currentCommand = parts[0]?.slice(1); // Remove the "/"
+          
+          // Handle color suggestions for /createrole
           if (ui.inputMessage.includes('/createrole ') && !selectedCommand.command.includes(' ')) {
-            const parts = ui.inputMessage.split(' ');
             if (parts.length === 3) {
               const newMessage = `${parts[0]} ${parts[1]} ${selectedCommand.command}`;
               ui.setInputMessage(newMessage);
             } else {
               ui.setInputMessage(ui.inputMessage + selectedCommand.command);
             }
-          } else {
+          }
+          // Handle user/role suggestions for user commands
+          else if (['ban', 'setrole', 'mod', 'unmod'].includes(currentCommand) && parts.length >= 2) {
+            // Replace the current incomplete argument with the selected suggestion
+            const newParts = [...parts];
+            newParts[parts.length - 1] = selectedCommand.command;
+            ui.setInputMessage(newParts.join(' ') + ' ');
+          }
+          // Handle regular command suggestions
+          else {
             const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
             ui.setInputMessage(commandWithSlash + ' ');
           }
@@ -189,15 +255,32 @@ function HomeContent() {
   const selectSuggestion = (index: number) => {
     const selectedCommand = commands.commandSuggestions[index];
     
+    // Don't handle selection for help-only suggestions
+    if (selectedCommand.command === '__help_only__') {
+      return;
+    }
+    
+    const parts = ui.inputMessage.split(' ');
+    const currentCommand = parts[0]?.slice(1); // Remove the "/"
+    
+    // Handle color suggestions for /createrole
     if (ui.inputMessage.includes('/createrole ') && !selectedCommand.command.includes(' ')) {
-      const parts = ui.inputMessage.split(' ');
       if (parts.length === 3) {
         const newMessage = `${parts[0]} ${parts[1]} ${selectedCommand.command}`;
         ui.setInputMessage(newMessage);
       } else {
         ui.setInputMessage(ui.inputMessage + selectedCommand.command);
       }
-    } else {
+    }
+    // Handle user/role suggestions for user commands
+    else if (['ban', 'setrole', 'mod', 'unmod'].includes(currentCommand) && parts.length >= 2) {
+      // Replace the current incomplete argument with the selected suggestion
+      const newParts = [...parts];
+      newParts[parts.length - 1] = selectedCommand.command;
+      ui.setInputMessage(newParts.join(' ') + ' ');
+    }
+    // Handle regular command suggestions
+    else {
       const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
       ui.setInputMessage(commandWithSlash + ' ');
     }
@@ -592,7 +675,9 @@ function HomeContent() {
                   }`}
                 >
                   <div className="font-mono text-xs">
-                    <span className="text-yellow-300">/{suggestion.command}</span>
+                    <span className="text-yellow-300">
+                      {suggestion.command === '__help_only__' ? 'Type reason...' : `/${suggestion.command}`}
+                    </span>
                     <div className="text-gray-400 text-xs mt-1">
                       {suggestion.description}
                       {suggestion.requiresRole && (
@@ -740,6 +825,34 @@ function HomeContent() {
           onClose={() => ui.setShowCreateChannelModal(false)}
           onSuccess={handleCreationSuccess}
         />
+      )}
+
+      {/* Email Confirmation Popup */}
+      {auth.emailConfirmed && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+          <div className="bg-black border border-green-400 p-6 max-w-md w-full mx-4">
+            <div className="text-green-400 font-mono text-sm text-center">
+              <div className="text-green-300 mb-4">
+                === EMAIL CONFIRMED ===
+              </div>
+              <div className="text-green-400 mb-4">
+                YOUR EMAIL HAS BEEN SUCCESSFULLY CONFIRMED!
+              </div>
+              <div className="text-gray-400 mb-6 text-xs">
+                PLEASE LOG IN TO CONTINUE
+              </div>
+              <button
+                onClick={() => {
+                  auth.setEmailConfirmed(false);
+                  auth.setShowAuthModal(true);
+                }}
+                className="w-full bg-green-400 text-black p-2 hover:bg-yellow-400"
+              >
+                CONTINUE TO LOGIN
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

@@ -15,9 +15,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export interface User {
   id: string;
   username: string;
-  current_server: string;
-  current_channel: string;
-  last_seen: string;
+  email?: string;
+  avatar_url?: string;
+  bio?: string;
+  current_server?: string;
+  current_channel?: string;
+  last_seen?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface Message {

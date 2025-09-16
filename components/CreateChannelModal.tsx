@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface CreateChannelModalProps {
-  serverId: string;
   categoryId?: string;
   categories: Array<{ id: string; name: string; emoji: string }>;
   onClose: () => void;
@@ -12,7 +11,6 @@ interface CreateChannelModalProps {
 }
 
 export default function CreateChannelModal({ 
-  serverId, 
   categoryId, 
   categories, 
   onClose, 
@@ -21,7 +19,6 @@ export default function CreateChannelModal({
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState(categoryId || '');
-  const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -45,11 +42,10 @@ export default function CreateChannelModal({
         return;
       }
 
-      // Check if channel name already exists in this server
+      // Check if channel name already exists globally
       const { data: existingChannel } = await supabase
         .from('channels')
         .select('id')
-        .eq('server_id', serverId)
         .eq('name', cleanName)
         .single();
 
@@ -61,12 +57,10 @@ export default function CreateChannelModal({
         .from('channels')
         .insert([
           {
-            server_id: serverId,
             name: cleanName,
             topic: topic.trim() || null,
             category_id: selectedCategoryId || null,
             created_by: user.id,
-            is_private: isPrivate,
           },
         ]);
 
@@ -143,20 +137,6 @@ export default function CreateChannelModal({
               </select>
             </div>
 
-            <div>
-              <label className="flex items-center text-green-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isPrivate}
-                  onChange={(e) => setIsPrivate(e.target.checked)}
-                  className="mr-2"
-                />
-                PRIVATE CHANNEL
-              </label>
-              <div className="text-xs text-gray-400 mt-1">
-                PRIVATE CHANNELS ARE ONLY VISIBLE TO INVITED MEMBERS
-              </div>
-            </div>
 
             {error && (
               <div className="text-red-400 text-xs">

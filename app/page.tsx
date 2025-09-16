@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import AuthModal from '@/components/AuthModal';
@@ -11,7 +11,6 @@ import type { ChannelCategory, ChannelMember, ChannelRole } from '@/lib/supabase
 interface User {
   id: string;
   username: string;
-  currentServer: string;
   currentChannel: string;
   role?: string;
 }
@@ -21,14 +20,7 @@ interface Message {
   username: string;
   content: string;
   timestamp: Date;
-  server: string;
   channel: string;
-}
-
-interface Server {
-  id: string;
-  name: string;
-  categories: ChannelCategory[];
 }
 
 interface Channel {
@@ -41,9 +33,8 @@ export default function Home() {
   const [connected, setConnected] = useState(false);
   const [username, setUsername] = useState('');
   const [userId, setUserId] = useState('');
-  const [currentServer, setCurrentServer] = useState('11111111-1111-1111-1111-111111111111');
-  const [currentChannel, setCurrentChannel] = useState('11111111-1111-1111-1111-111111111111');
-  const [servers, setServers] = useState<Server[]>([]);
+  const [currentChannel, setCurrentChannel] = useState('');
+  const [categories, setCategories] = useState<ChannelCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -66,13 +57,83 @@ export default function Home() {
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<number>(0);
   const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
 
+  // Fetch categories with channels from Supabase
+  const fetchCategoriesAndChannels = useCallback(async () => {
+    // Fetch categories with channels
+    const { data: categoriesData, error: categoriesError } = await supabase
+      .from('channel_categories')
+      .select(`
+        id,
+        name,
+        emoji,
+        color,
+        sort_order,
+        channels (
+          id,
+          name,
+          topic,
+          category_id
+        )
+      `)
+      .order('sort_order');
+
+    if (categoriesError) {
+      console.error('Error fetching categories:', categoriesError);
+      return;
+    }
+
+    // Also fetch uncategorized channels
+    const { data: uncategorizedChannels } = await supabase
+      .from('channels')
+      .select('id, name, topic, category_id')
+      .is('category_id', null);
+
+    const categories = categoriesData || [];
+    
+    // Add uncategorized channels as a special category if they exist
+    if (uncategorizedChannels && uncategorizedChannels.length > 0) {
+      categories.push({
+        id: 'uncategorized',
+        name: 'Uncategorized',
+        emoji: '📝',
+        color: 'text-gray-400',
+        sort_order: 999,
+        channels: uncategorizedChannels,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    setCategories(categories);
+    
+    // Auto-select first channel if none selected
+    if (!currentChannel && categories.length > 0) {
+      // Find first channel in any category
+      let firstChannel = null;
+      for (const category of categories) {
+        if (category.channels && category.channels.length > 0) {
+          firstChannel = category.channels[0];
+          break;
+        }
+      }
+      
+      if (firstChannel) {
+        setCurrentChannel(firstChannel.id);
+      }
+    }
+    
+    // Auto-expand first category
+    if (categories.length > 0) {
+      setExpandedCategories(new Set([categories[0].id]));
+    }
+  }, [currentChannel]);
+
   useEffect(() => {
     // Check for existing session
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data: profile } = await supabase
-          .from('users')
+          .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
@@ -90,80 +151,7 @@ export default function Home() {
     };
 
     checkAuth();
-
-    // Fetch servers with categories and channels from Supabase
-    const fetchServersAndChannels = async () => {
-      const { data: serversData, error: serversError } = await supabase
-        .from('servers')
-        .select(`
-          id,
-          name,
-          description
-        `);
-
-      if (serversError) {
-        console.error('Error fetching servers:', serversError);
-        return;
-      }
-
-      // Fetch categories with channels for each server
-      const serversWithCategories = await Promise.all(
-        (serversData || []).map(async (server) => {
-          const { data: categoriesData } = await supabase
-            .from('channel_categories')
-            .select(`
-              id,
-              name,
-              emoji,
-              color,
-              sort_order,
-              channels (
-                id,
-                name,
-                topic,
-                category_id
-              )
-            `)
-            .eq('server_id', server.id)
-            .order('sort_order');
-
-          // Also fetch uncategorized channels
-          const { data: uncategorizedChannels } = await supabase
-            .from('channels')
-            .select('id, name, topic, category_id')
-            .eq('server_id', server.id)
-            .is('category_id', null);
-
-          const categories = categoriesData || [];
-          
-          // Add uncategorized channels as a special category if they exist
-          if (uncategorizedChannels && uncategorizedChannels.length > 0) {
-            categories.push({
-              id: `uncategorized-${server.id}`,
-              name: 'Uncategorized',
-              emoji: '📝',
-              color: 'text-gray-400',
-              sort_order: 999,
-              channels: uncategorizedChannels
-            });
-          }
-
-          return {
-            ...server,
-            categories: categories
-          };
-        })
-      );
-
-      setServers(serversWithCategories);
-      
-      // Auto-expand first category of first server
-      if (serversWithCategories.length > 0 && serversWithCategories[0].categories.length > 0) {
-        setExpandedCategories(new Set([serversWithCategories[0].categories[0].id]));
-      }
-    };
-
-    fetchServersAndChannels();
+    fetchCategoriesAndChannels();
 
     return () => {
       if (channel) {
@@ -174,20 +162,20 @@ export default function Home() {
 
   useEffect(() => {
     // Auto-join default channel for all users (authenticated and lurkers)
-    if (!isJoined) {
-      switchChannel(currentServer, currentChannel);
+    if (!isJoined && currentChannel) {
+      switchChannel(currentChannel);
       setIsJoined(true);
     }
-  }, [isJoined]);
+  }, [isJoined, currentChannel]);
 
-  const joinChannel = async (serverId: string, channelId: string) => {
+  const joinChannel = async (channelId: string) => {
     // Cleanup old channel
     if (channel) {
       supabase.removeChannel(channel);
     }
 
     // Create new channel subscription
-    const channelName = `${serverId}:${channelId}`;
+    const channelName = `channel:${channelId}`;
     const newChannel = supabase.channel(channelName);
 
     // Listen for broadcast messages (instant)
@@ -266,7 +254,6 @@ export default function Home() {
           await newChannel.track({
             id: userId,
             username: username,
-            currentServer: serverId,
             currentChannel: channelId,
             last_seen: new Date().toISOString()
           });
@@ -314,7 +301,6 @@ export default function Home() {
         username: 'SYSTEM',
         content: `Access denied. You need owner or moderator privileges to use /${command}`,
         timestamp: new Date(),
-        server: currentServer,
         channel: currentChannel
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -328,7 +314,6 @@ export default function Home() {
         username: 'SYSTEM',
         content: `Usage: /${command} <username> [reason]`,
         timestamp: new Date(),
-        server: currentServer,
         channel: currentChannel
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -343,7 +328,6 @@ export default function Home() {
         username: 'SYSTEM',
         content: `User '${targetUsername}' not found in channel`,
         timestamp: new Date(),
-        server: currentServer,
         channel: currentChannel
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -357,7 +341,6 @@ export default function Home() {
         username: 'SYSTEM',
         content: `Cannot moderate channel owner`,
         timestamp: new Date(),
-        server: currentServer,
         channel: currentChannel
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -380,8 +363,7 @@ export default function Home() {
             username: 'SYSTEM',
             content: `${targetUsername} was kicked by ${username}. Reason: ${reason}`,
             timestamp: new Date(),
-            server: currentServer,
-            channel: currentChannel
+                channel: currentChannel
           };
           setMessages(prev => [...prev, kickMsg]);
           break;
@@ -407,8 +389,7 @@ export default function Home() {
             username: 'SYSTEM',
             content: `${targetUsername} was banned by ${username}. Reason: ${reason}`,
             timestamp: new Date(),
-            server: currentServer,
-            channel: currentChannel
+                channel: currentChannel
           };
           setMessages(prev => [...prev, banMsg]);
           break;
@@ -420,8 +401,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `Only channel owner can promote moderators`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             return true;
@@ -438,8 +418,7 @@ export default function Home() {
             username: 'SYSTEM',
             content: `${targetUsername} was promoted to moderator by ${username}`,
             timestamp: new Date(),
-            server: currentServer,
-            channel: currentChannel
+                channel: currentChannel
           };
           setMessages(prev => [...prev, modMsg]);
           break;
@@ -451,8 +430,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `Only channel owner can demote moderators`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             return true;
@@ -469,8 +447,7 @@ export default function Home() {
             username: 'SYSTEM',
             content: `${targetUsername} was demoted to member by ${username}`,
             timestamp: new Date(),
-            server: currentServer,
-            channel: currentChannel
+                channel: currentChannel
           };
           setMessages(prev => [...prev, unmodMsg]);
           break;
@@ -495,7 +472,6 @@ export default function Home() {
         username: 'SYSTEM',
         content: `Error executing /${command}: ${error}`,
         timestamp: new Date(),
-        server: currentServer,
         channel: currentChannel
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -531,8 +507,7 @@ export default function Home() {
             username: 'SYSTEM',
             content: 'Available commands: /kick <user> [reason], /ban <user> [reason], /mod <user>, /unmod <user>, /motd <message>, /info',
             timestamp: new Date(),
-            server: currentServer,
-            channel: currentChannel
+                channel: currentChannel
           };
           setMessages(prev => [...prev, helpMsg]);
           setInputMessage('');
@@ -548,8 +523,7 @@ export default function Home() {
             username: 'SYSTEM',
             content: `Channel info - Owner: ${owner ? owner.username.toUpperCase() : 'None'}${moderators.length > 0 ? ` | Moderators: ${moderators.map(m => m.username.toUpperCase()).join(', ')}` : ''} | Members: ${channelMembers.length}`,
             timestamp: new Date(),
-            server: currentServer,
-            channel: currentChannel
+                channel: currentChannel
           };
           setMessages(prev => [...prev, infoMsg]);
           setInputMessage('');
@@ -564,8 +538,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Access denied. Only channel owners can list roles.',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -581,8 +554,7 @@ export default function Home() {
             username: 'SYSTEM',
             content: `Channel roles: ${roleList || 'No roles found'}`,
             timestamp: new Date(),
-            server: currentServer,
-            channel: currentChannel
+                channel: currentChannel
           };
           setMessages(prev => [...prev, rolesMsg]);
           setInputMessage('');
@@ -596,8 +568,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Access denied. Only channel owners can create roles.',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -613,8 +584,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Usage: /createrole <name> [color] - Example: /createrole VIP purple',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -627,8 +597,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Usage: /createrole <name> <color> - Use autocomplete to select a color',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -661,8 +630,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `Invalid color "${roleColor}". Use color names like: red, blue, purple, green, etc.`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -687,8 +655,7 @@ export default function Home() {
                 username: 'SYSTEM',
                 content: `Failed to create role: ${error.message}`,
                 timestamp: new Date(),
-                server: currentServer,
-                channel: currentChannel
+                        channel: currentChannel
               };
               setMessages(prev => [...prev, errorMsg]);
             } else {
@@ -697,8 +664,7 @@ export default function Home() {
                 username: 'SYSTEM',
                 content: `Role "${roleName}" created successfully with color ${roleColor}`,
                 timestamp: new Date(),
-                server: currentServer,
-                channel: currentChannel
+                        channel: currentChannel
               };
               setMessages(prev => [...prev, successMsg]);
               
@@ -711,8 +677,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `Error creating role: ${error instanceof Error ? error.message : 'Unknown error'}`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
           }
@@ -729,8 +694,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Access denied. Only channel owners can set MOTD.',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -745,8 +709,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Usage: /motd <message> - Example: /motd Welcome to our awesome channel!',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -769,8 +732,7 @@ export default function Home() {
                 username: 'SYSTEM',
                 content: `Failed to set MOTD: ${error.message}`,
                 timestamp: new Date(),
-                server: currentServer,
-                channel: currentChannel
+                        channel: currentChannel
               };
               setMessages(prev => [...prev, errorMsg]);
             } else {
@@ -779,8 +741,7 @@ export default function Home() {
                 username: 'SYSTEM',
                 content: `MOTD updated by ${username}: ${newMotd}`,
                 timestamp: new Date(),
-                server: currentServer,
-                channel: currentChannel
+                        channel: currentChannel
               };
               setMessages(prev => [...prev, successMsg]);
 
@@ -799,8 +760,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `Error setting MOTD: ${error instanceof Error ? error.message : 'Unknown error'}`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
           }
@@ -816,8 +776,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Access denied. You need role management permissions.',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -833,8 +792,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: 'Usage: /setrole <username> <role> - Example: /setrole john VIP',
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -850,8 +808,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `User "${targetUsername}" not found in this channel.`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -864,8 +821,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `Role "${roleName}" not found. Use /roles to see available roles.`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
             setInputMessage('');
@@ -884,8 +840,7 @@ export default function Home() {
                 username: 'SYSTEM',
                 content: `Failed to assign role: ${error.message}`,
                 timestamp: new Date(),
-                server: currentServer,
-                channel: currentChannel
+                        channel: currentChannel
               };
               setMessages(prev => [...prev, errorMsg]);
             } else {
@@ -894,8 +849,7 @@ export default function Home() {
                 username: 'SYSTEM',
                 content: `${targetUsername} has been assigned the role "${roleName}"`,
                 timestamp: new Date(),
-                server: currentServer,
-                channel: currentChannel
+                        channel: currentChannel
               };
               setMessages(prev => [...prev, successMsg]);
               
@@ -908,8 +862,7 @@ export default function Home() {
               username: 'SYSTEM',
               content: `Error assigning role: ${error instanceof Error ? error.message : 'Unknown error'}`,
               timestamp: new Date(),
-              server: currentServer,
-              channel: currentChannel
+                    channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
           }
@@ -925,7 +878,6 @@ export default function Home() {
         username: username,
         content: trimmedInput,
         timestamp: new Date(),
-        server: currentServer,
         channel: currentChannel
       };
 
@@ -973,8 +925,7 @@ export default function Home() {
     }
   };
 
-  const switchChannel = async (serverId: string, channelId: string) => {
-    setCurrentServer(serverId);
+  const switchChannel = async (channelId: string) => {
     setCurrentChannel(channelId);
     setMessages([]); // Clear messages when switching
     setUsers([]); // Clear users when switching
@@ -1007,7 +958,6 @@ export default function Home() {
         username: msg.username,
         content: msg.content,
         timestamp: new Date(msg.created_at),
-        server: serverId,
         channel: channelId
       }));
       setMessages(formattedMessages);
@@ -1022,12 +972,12 @@ export default function Home() {
     await fetchChannelMembers(channelId);
     
     // All users (including lurkers) can join realtime channel for messages
-    await joinChannel(serverId, channelId);
+    await joinChannel(channelId);
   };
 
   const handleAuthSuccess = (user: any) => {
     setAuthUser(user);
-    setUsername(user.profile.username);
+    setUsername(user.username);  // AuthModal flattens the structure
     setUserId(user.id);
     setShowAuthModal(false);
     
@@ -1059,13 +1009,13 @@ export default function Home() {
   };
 
   const getCurrentChannelName = () => {
-    for (const server of servers) {
-      for (const category of server.categories) {
-        const channel = category.channels?.find(c => c.id === currentChannel);
-        if (channel) return channel.name;
-      }
+    if (!currentChannel) return 'no-channel';
+    
+    for (const category of categories) {
+      const channel = category.channels?.find(c => c.id === currentChannel);
+      if (channel) return channel.name;
     }
-    return currentChannel;
+    return 'unknown-channel';
   };
 
   const fetchChannelMembers = async (channelId: string) => {
@@ -1379,74 +1329,8 @@ export default function Home() {
   };
 
   const handleCreationSuccess = () => {
-    // Refresh servers and channels data
-    const fetchServersAndChannels = async () => {
-      const { data: serversData, error: serversError } = await supabase
-        .from('servers')
-        .select(`
-          id,
-          name,
-          description
-        `);
-
-      if (serversError) {
-        console.error('Error fetching servers:', serversError);
-        return;
-      }
-
-      // Fetch categories with channels for each server
-      const serversWithCategories = await Promise.all(
-        (serversData || []).map(async (server) => {
-          const { data: categoriesData } = await supabase
-            .from('channel_categories')
-            .select(`
-              id,
-              name,
-              emoji,
-              color,
-              sort_order,
-              channels (
-                id,
-                name,
-                topic,
-                category_id
-              )
-            `)
-            .eq('server_id', server.id)
-            .order('sort_order');
-
-          // Also fetch uncategorized channels
-          const { data: uncategorizedChannels } = await supabase
-            .from('channels')
-            .select('id, name, topic, category_id')
-            .eq('server_id', server.id)
-            .is('category_id', null);
-
-          const categories = categoriesData || [];
-          
-          // Add uncategorized channels as a special category if they exist
-          if (uncategorizedChannels && uncategorizedChannels.length > 0) {
-            categories.push({
-              id: `uncategorized-${server.id}`,
-              name: 'Uncategorized',
-              emoji: '📝',
-              color: 'text-gray-400',
-              sort_order: 999,
-              channels: uncategorizedChannels
-            });
-          }
-
-          return {
-            ...server,
-            categories: categories
-          };
-        })
-      );
-
-      setServers(serversWithCategories);
-    };
-
-    fetchServersAndChannels();
+    // Refresh categories and channels data
+    fetchCategoriesAndChannels();
   };
 
   if (showAuthModal) {
@@ -1540,37 +1424,43 @@ export default function Home() {
                 <button onClick={() => setShowSidebar(false)} className="text-red-400">[X]</button>
               </div>
               <div className="ml-2">
-                {servers.map(server => (
-                  <div key={server.id}>
-                    {server.categories.map(category => (
-                      <div key={category.id}>
-                        <div 
-                          onClick={() => toggleCategory(category.id)}
-                          className="cursor-pointer text-green-300 hover:text-yellow-400 mb-1"
-                        >
-                          {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
-                        </div>
-                        {expandedCategories.has(category.id) && category.channels?.map(channel => (
-                          <div 
-                            key={channel.id}
-                            onClick={() => {
-                              switchChannel(server.id, channel.id);
-                              setShowSidebar(false);
-                            }}
-                            className={`cursor-pointer ml-4 ${
-                              currentServer === server.id && currentChannel === channel.id
-                                ? 'text-yellow-400'
-                                : 'text-green-400 hover:text-yellow-400'
-                            }`}
-                          >
-                            {currentServer === server.id && currentChannel === channel.id ? '> ' : '  '}
-                            #{channel.name.toUpperCase()}
-                          </div>
-                        ))}
+                {categories.length === 0 ? (
+                  <div className="text-gray-400 italic">No categories available</div>
+                ) : (
+                  categories.map(category => (
+                    <div key={category.id}>
+                      <div 
+                        onClick={() => toggleCategory(category.id)}
+                        className="cursor-pointer text-green-300 hover:text-yellow-400 mb-1"
+                      >
+                        {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.emoji} {category.name.toUpperCase()}
                       </div>
-                    ))}
-                  </div>
-                ))}
+                      {expandedCategories.has(category.id) && (
+                        category.channels?.length === 0 ? (
+                          <div className="text-gray-400 italic ml-4">No channels in category</div>
+                        ) : (
+                          category.channels?.map(channel => (
+                            <div 
+                              key={channel.id}
+                              onClick={() => {
+                                switchChannel(channel.id);
+                                setShowSidebar(false);
+                              }}
+                              className={`cursor-pointer ml-4 ${
+                                currentChannel === channel.id
+                                  ? 'text-yellow-400'
+                                  : 'text-green-400 hover:text-yellow-400'
+                              }`}
+                            >
+                              {currentChannel === channel.id ? '> ' : '  '}
+                              #{channel.name.toUpperCase()}
+                            </div>
+                          ))
+                        )
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
               
 
@@ -1583,36 +1473,42 @@ export default function Home() {
           <div className="mb-4">
             <div className="text-green-300">CHANNELS:</div>
             <div className="ml-2">
-              {servers.map(server => (
-                <div key={server.id}>
-                  {server.categories.map(category => (
-                    <div key={category.id} className="mb-2">
-                      <div className="flex justify-between items-center mb-1">
-                        <div 
-                          onClick={() => toggleCategory(category.id)}
-                          className="cursor-pointer text-green-300 hover:text-yellow-400 font-medium flex-1"
-                        >
-                          {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
-                        </div>
+              {categories.length === 0 ? (
+                <div className="text-gray-400 italic">No categories available</div>
+              ) : (
+                categories.map(category => (
+                  <div key={category.id} className="mb-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <div 
+                        onClick={() => toggleCategory(category.id)}
+                        className="cursor-pointer text-green-300 hover:text-yellow-400 font-medium flex-1"
+                      >
+                        {expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.emoji} {category.name.toUpperCase()}
                       </div>
-                      {expandedCategories.has(category.id) && category.channels?.map(channel => (
-                        <div 
-                          key={channel.id}
-                          onClick={() => switchChannel(server.id, channel.id)}
-                          className={`cursor-pointer ml-4 ${
-                            currentServer === server.id && currentChannel === channel.id
-                              ? 'text-yellow-400'
-                              : 'text-green-400 hover:text-yellow-400'
-                          }`}
-                        >
-                          {currentServer === server.id && currentChannel === channel.id ? '> ' : '  '}
-                          #{channel.name.toUpperCase()}
-                        </div>
-                      ))}
                     </div>
-                  ))}
-                </div>
-              ))}
+                    {expandedCategories.has(category.id) && (
+                      category.channels?.length === 0 ? (
+                        <div className="text-gray-400 italic ml-4">No channels in category</div>
+                      ) : (
+                        category.channels?.map(channel => (
+                          <div 
+                            key={channel.id}
+                            onClick={() => switchChannel(channel.id)}
+                            className={`cursor-pointer ml-4 ${
+                              currentChannel === channel.id
+                                ? 'text-yellow-400'
+                                : 'text-green-400 hover:text-yellow-400'
+                            }`}
+                          >
+                            {currentChannel === channel.id ? '> ' : '  '}
+                            #{channel.name.toUpperCase()}
+                          </div>
+                        ))
+                      )
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
           
@@ -1638,7 +1534,7 @@ export default function Home() {
           }}>
             <div className="space-y-1">
               <div className="hidden sm:block">*** MOTD: {currentMotd} ***</div>
-              <div className="hidden sm:block">*** CONNECTING TO {servers.find(s => s.id === currentServer)?.name.toUpperCase()}:6667</div>
+              <div className="hidden sm:block">*** CONNECTING TO IRC CHAT</div>
               <div className="hidden sm:block">*** JOINING #{getCurrentChannelName().toUpperCase()}</div>
               {!authUser && (
                 <div className="text-yellow-400">*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
@@ -1794,7 +1690,6 @@ export default function Home() {
       {/* Modals */}
       {showCreateCategoryModal && (
         <CreateCategoryModal
-          serverId={currentServer}
           onClose={() => setShowCreateCategoryModal(false)}
           onSuccess={handleCreationSuccess}
         />
@@ -1802,9 +1697,8 @@ export default function Home() {
 
       {showCreateChannelModal && (
         <CreateChannelModal
-          serverId={currentServer}
           categoryId={selectedCategoryForChannel}
-          categories={servers.find(s => s.id === currentServer)?.categories || []}
+          categories={categories}
           onClose={() => setShowCreateChannelModal(false)}
           onSuccess={handleCreationSuccess}
         />

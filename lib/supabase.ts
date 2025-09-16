@@ -30,28 +30,17 @@ export interface Message {
   created_at: string;
 }
 
-export interface Server {
-  id: string;
-  name: string;
-  description?: string;
-  created_by: string;
-  created_at: string;
-}
-
 export interface Channel {
   id: string;
-  server_id: string;
   name: string;
   topic?: string;
   category_id?: string;
   created_by?: string;
-  is_private?: boolean;
   created_at: string;
 }
 
 export interface ChannelCategory {
   id: string;
-  server_id: string;
   name: string;
   emoji: string;
   color: string;

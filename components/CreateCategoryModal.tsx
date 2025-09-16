@@ -4,12 +4,11 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface CreateCategoryModalProps {
-  serverId: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function CreateCategoryModal({ serverId, onClose, onSuccess }: CreateCategoryModalProps) {
+export default function CreateCategoryModal({ onClose, onSuccess }: CreateCategoryModalProps) {
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState('📁');
   const [color, setColor] = useState('text-green-400');
@@ -34,11 +33,10 @@ export default function CreateCategoryModal({ serverId, onClose, onSuccess }: Cr
     setError('');
 
     try {
-      // Get the highest sort_order for this server
+      // Get the highest sort_order across all categories
       const { data: existingCategories } = await supabase
         .from('channel_categories')
         .select('sort_order')
-        .eq('server_id', serverId)
         .order('sort_order', { ascending: false })
         .limit(1);
 
@@ -50,7 +48,6 @@ export default function CreateCategoryModal({ serverId, onClose, onSuccess }: Cr
         .from('channel_categories')
         .insert([
           {
-            server_id: serverId,
             name: name.trim(),
             emoji,
             color,

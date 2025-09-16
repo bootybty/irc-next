@@ -22,7 +22,7 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
 
     try {
       if (isLogin) {
-        // Login
+        // Login - simple and clean
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -30,38 +30,53 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
 
         if (error) throw error;
 
-        // Get user profile
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', email)
-          .single();
+        if (data.user) {
+          // Get profile that was auto-created by trigger
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-        onAuthSuccess({ ...data.user, profile });
+          if (profile) {
+            onAuthSuccess({ ...data.user, username: profile.username, email: profile.email });
+          } else {
+            throw new Error('Profile not found after login');
+          }
+        }
       } else {
-        // Sign up
+        // Sign up - let trigger handle profile creation
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              username: username.trim(),
+            }
+          }
         });
 
         if (error) throw error;
 
         if (data.user) {
-          // Create user profile
-          const { error: profileError } = await supabase
-            .from('users')
-            .insert([
-              {
-                id: data.user.id,
-                username,
-                email,
-              },
-            ]);
+          // Check if user needs email confirmation
+          if (!data.session) {
+            setError('Please check your email to confirm your account before logging in.');
+            return;
+          }
 
-          if (profileError) throw profileError;
+          // Profile should be auto-created by trigger
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-          onAuthSuccess({ ...data.user, profile: { username, email } });
+          if (profile) {
+            onAuthSuccess({ ...data.user, username: profile.username, email: profile.email });
+          } else {
+            throw new Error('Profile was not created automatically');
+          }
         }
       }
     } catch (error: any) {
@@ -93,9 +108,14 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
-                  placeholder="ENTER USERNAME..."
-                  required
+                  placeholder="YOUR_HANDLE"
+                  maxLength={30}
+                  pattern="[a-zA-Z0-9_-]+"
+                  required={!isLogin}
                 />
+                <div className="text-xs text-gray-400 mt-1">
+                  LETTERS, NUMBERS, UNDERSCORE, HYPHEN ONLY
+                </div>
               </div>
             )}
 
@@ -106,7 +126,7 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
-                placeholder="ENTER EMAIL..."
+                placeholder="USER@DOMAIN.COM"
                 required
               />
             </div>
@@ -118,7 +138,8 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
-                placeholder="ENTER PASSWORD..."
+                placeholder="********"
+                minLength={6}
                 required
               />
             </div>
@@ -129,15 +150,13 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 bg-green-400 text-black p-2 hover:bg-yellow-400 disabled:opacity-50"
-              >
-                {loading ? 'PROCESSING...' : isLogin ? 'LOGIN' : 'REGISTER'}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading || !email.trim() || !password.trim() || (!isLogin && !username.trim())}
+              className="w-full bg-green-400 text-black p-2 hover:bg-yellow-400 disabled:opacity-50"
+            >
+              {loading ? 'PROCESSING...' : (isLogin ? 'LOGIN' : 'REGISTER')}
+            </button>
 
             <div className="text-center">
               <button
@@ -145,10 +164,13 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError('');
+                  setEmail('');
+                  setPassword('');
+                  setUsername('');
                 }}
-                className="text-yellow-400 hover:text-green-300 text-xs"
+                className="text-gray-400 hover:text-green-400 text-xs"
               >
-                {isLogin ? 'NEED ACCOUNT? REGISTER' : 'HAVE ACCOUNT? LOGIN'}
+                {isLogin ? 'NEED AN ACCOUNT? REGISTER' : 'HAVE AN ACCOUNT? LOGIN'}
               </button>
             </div>
           </form>

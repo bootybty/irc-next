@@ -43,5 +43,19 @@ export interface Channel {
   server_id: string;
   name: string;
   topic?: string;
+  category_id?: string;
+  created_by?: string;
+  is_private?: boolean;
   created_at: string;
+}
+
+export interface ChannelCategory {
+  id: string;
+  server_id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  channels?: Channel[];
 }

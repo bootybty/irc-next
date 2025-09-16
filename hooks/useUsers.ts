@@ -21,7 +21,7 @@ interface ChannelMember {
 export const useUsers = (
   users: User[],
   channelMembers: ChannelMember[],
-  username: string
+  _username: string
 ) => {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
@@ -62,7 +62,7 @@ export const useUsers = (
         roleColor: member ? getRoleColor(member) : currentTheme.roleDefault
       };
     });
-  }, [users, channelMembers, theme]);
+  }, [users, channelMembers, currentTheme.roleDefault, getRoleColor]);
 
   return {
     displayUsers,

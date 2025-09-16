@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useTheme, themes } from '@/components/ThemeProvider';
 
 interface AuthModalProps {
   onAuthSuccess: (user: { id: string; username: string }) => void;
@@ -9,6 +10,8 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
+  const { theme } = useTheme();
+  const currentTheme = themes[theme];
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -155,14 +158,14 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div className="bg-black border border-green-400 p-6 max-w-md w-full mx-4">
-        <div className="text-green-400 font-mono text-sm">
+      <div className={`${currentTheme.modal} ${currentTheme.border} border p-6 max-w-md w-full mx-4`}>
+        <div className={`${currentTheme.text} font-mono text-sm`}>
           <div className="text-center mb-6">
-            <div className="text-green-300 mb-2">
+            <div className={`${currentTheme.accent} mb-2`}>
               {showForgotPassword ? '=== RESET PASSWORD ===' : 
                isLogin ? '=== LOGIN TO IRC ===' : '=== REGISTER FOR IRC ==='}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className={`text-xs ${currentTheme.muted}`}>
               {showForgotPassword ? 'ENTER YOUR EMAIL TO RESET PASSWORD' :
                isLogin ? 'ENTER YOUR CREDENTIALS' : 'CREATE NEW ACCOUNT'}
             </div>
@@ -171,30 +174,30 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && !showForgotPassword && (
               <div>
-                <label className="block text-green-300 mb-1">USERNAME:</label>
+                <label className={`block ${currentTheme.accent} mb-1`}>USERNAME:</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                  className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                   placeholder="YOUR_HANDLE"
                   maxLength={30}
                   pattern="[a-zA-Z0-9_-]+"
                   required={!isLogin}
                 />
-                <div className="text-xs text-gray-400 mt-1">
+                <div className={`text-xs ${currentTheme.muted} mt-1`}>
                   LETTERS, NUMBERS, UNDERSCORE, HYPHEN ONLY
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-green-300 mb-1">EMAIL:</label>
+              <label className={`block ${currentTheme.accent} mb-1`}>EMAIL:</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                 placeholder="USER@DOMAIN.COM"
                 required
               />
@@ -202,12 +205,12 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
 
             {!showForgotPassword && (
               <div>
-                <label className="block text-green-300 mb-1">PASSWORD:</label>
+                <label className={`block ${currentTheme.accent} mb-1`}>PASSWORD:</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                  className={`w-full ${currentTheme.background} border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400`}
                   placeholder="********"
                   minLength={6}
                   required
@@ -216,13 +219,13 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
             )}
 
             {error && (
-              <div className="text-red-400 text-xs">
+              <div className={`${currentTheme.error} text-xs`}>
                 *** ERROR: {error.toUpperCase()}
               </div>
             )}
 
             {success && (
-              <div className="text-green-400 text-xs">
+              <div className={`${currentTheme.success} text-xs`}>
                 *** SUCCESS: {success.toUpperCase()}
               </div>
             )}
@@ -230,7 +233,7 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
             <button
               type="submit"
               disabled={loading || !email.trim() || (!showForgotPassword && (!password.trim() || (!isLogin && !username.trim())))}
-              className="w-full bg-green-400 text-black p-2 hover:bg-yellow-400 disabled:opacity-50"
+              className={`w-full bg-green-400 text-black p-2 ${currentTheme.button} disabled:opacity-50`}
             >
               {loading ? 'PROCESSING...' : 
                showForgotPassword ? 'SEND RESET EMAIL' :
@@ -250,7 +253,7 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
                       setPassword('');
                       setUsername('');
                     }}
-                    className="text-gray-400 hover:text-green-400 text-xs block w-full"
+                    className={`${currentTheme.muted} hover:text-green-400 text-xs block w-full`}
                   >
                     {isLogin ? 'NEED AN ACCOUNT? REGISTER' : 'HAVE AN ACCOUNT? LOGIN'}
                   </button>
@@ -264,7 +267,7 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
                         setSuccess('');
                         setPassword('');
                       }}
-                      className="text-gray-400 hover:text-yellow-400 text-xs block w-full"
+                      className={`${currentTheme.muted} ${currentTheme.button} text-xs block w-full`}
                     >
                       FORGOT PASSWORD?
                     </button>
@@ -291,7 +294,7 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="text-red-400 hover:text-red-300 text-xs block w-full"
+                  className={`${currentTheme.error} hover:text-red-300 text-xs block w-full`}
                 >
                   CANCEL / GO BACK
                 </button>

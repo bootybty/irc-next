@@ -302,7 +302,7 @@ function HomeContent() {
   };
 
   if (auth.showAuthModal) {
-    return <AuthModal onAuthSuccess={auth.handleAuthSuccess} />;
+    return <AuthModal onAuthSuccess={auth.handleAuthSuccess} onCancel={() => auth.setShowAuthModal(false)} />;
   }
 
   return (

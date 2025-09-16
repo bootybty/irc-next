@@ -79,12 +79,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
     const fetchedUniversalChannels = universalChannelsResult.data || [];
 
     if (categoriesResult.error) {
-      console.error('Error fetching categories:', {
-        error: categoriesResult.error,
-        message: categoriesResult.error?.message || 'Unknown error',
-        details: categoriesResult.error?.details || 'No details',
-        code: categoriesResult.error?.code || 'No code'
-      });
+      // console.error('Error fetching categories:', categoriesResult.error);
       return;
     }
 
@@ -256,7 +251,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
   };
 
   const switchChannel = async (channelId: string, updateUrl: boolean = true) => {
-    console.log('switchChannel called with:', channelId, 'current:', currentChannel);
+    // console.log('switchChannel called with:', channelId, 'current:', currentChannel);
     
     let channelName = 'unknown-channel';
     for (const category of categories) {
@@ -272,7 +267,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
       window.history.replaceState({}, '', newUrl);
     }
     
-    console.log('Setting currentChannel to:', channelId);
+    // console.log('Setting currentChannel to:', channelId);
     
     startTransition(() => {
       setJoinStatus('joining');
@@ -291,13 +286,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
       ]);
 
       if (channelResult.error) {
-        console.error('Error fetching channel:', {
-          channelId,
-          error: channelResult.error,
-          message: channelResult.error?.message || 'Unknown error',
-          details: channelResult.error?.details || 'No details',
-          code: channelResult.error?.code || 'No code'
-        });
+        // console.error('Error fetching channel:', channelResult.error);
         setJoinStatus('failed');
         return;
       }
@@ -337,7 +326,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
       
       return { success: true, channelData };
     } catch (error) {
-      console.error('Error switching channel:', error);
+      // console.error('Error switching channel:', error);
       setJoinStatus('failed');
       setCurrentChannel(channelId);
       return { success: false, error };
@@ -379,7 +368,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
 
   useEffect(() => {
     const urlChannelName = window.location.hash.slice(1) || '';
-    console.log('URL channel name from hash:', urlChannelName, 'Categories loaded:', categories.length);
+    // console.log('URL channel name from hash:', urlChannelName, 'Categories loaded:', categories.length);
     
     if (urlChannelName && categories.length > 0) {
       let foundChannelId = '';
@@ -387,13 +376,13 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
         const channel = category.channels?.find(c => c.name === urlChannelName);
         if (channel) {
           foundChannelId = channel.id;
-          console.log('Found channel:', channel.name, 'ID:', foundChannelId);
+          // console.log('Found channel:', channel.name, 'ID:', foundChannelId);
           break;
         }
       }
       
       if (foundChannelId && foundChannelId !== currentChannel) {
-        console.log('Switching to channel:', foundChannelId);
+        // console.log('Switching to channel:', foundChannelId);
         switchChannel(foundChannelId, false);
       }
     }

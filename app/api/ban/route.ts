@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (banError) {
-      console.error('Ban insert failed:', banError);
+      // console.error('Ban insert failed:', banError);
       return NextResponse.json({ error: banError.message }, { status: 400 });
     }
 
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       .eq('user_id', targetUserId);
 
     if (deleteError) {
-      console.error('Member delete error:', deleteError);
+      // console.error('Member delete error:', deleteError);
     }
 
     // Send ban message to channel
@@ -53,12 +53,12 @@ export async function POST(request: NextRequest) {
       });
 
     if (messageError) {
-      console.error('Message insert error:', messageError);
+      // console.error('Message insert error:', messageError);
     }
 
     return NextResponse.json({ success: true, data: banData });
   } catch (error) {
-    console.error('Ban API error:', error);
+    // console.error('Ban API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

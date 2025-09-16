@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useTheme, themes } from '@/components/ThemeProvider';
 
 export default function ConfirmPage() {
+  const { theme } = useTheme();
+  const currentTheme = themes[theme];
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const router = useRouter();
@@ -53,27 +56,27 @@ export default function ConfirmPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
-      <div className="max-w-md w-full mx-4 p-6 border border-green-400 bg-black">
+    <div className={`min-h-screen ${currentTheme.background} ${currentTheme.text} font-mono flex items-center justify-center`}>
+      <div className={`max-w-md w-full mx-4 p-6 border ${currentTheme.border} ${currentTheme.background}`}>
         <div className="text-center">
-          <div className="text-green-300 mb-4">
+          <div className={`${currentTheme.accent} mb-4`}>
             === EMAIL CONFIRMATION ===
           </div>
           
           {status === 'loading' && (
-            <div className="text-yellow-400">
+            <div className={`${currentTheme.highlight}`}>
               PROCESSING CONFIRMATION...
             </div>
           )}
           
           {status === 'success' && (
             <div>
-              <div className="text-green-400 mb-4">
+              <div className={`${currentTheme.success} mb-4`}>
                 ✅ SUCCESS: {message.toUpperCase()}
               </div>
               <button
                 onClick={handleReturnToSite}
-                className="w-full bg-green-400 text-black p-2 hover:bg-yellow-400"
+                className={`w-full bg-green-400 text-black p-2 ${currentTheme.button}`}
               >
                 RETURN TO IRC
               </button>
@@ -82,12 +85,12 @@ export default function ConfirmPage() {
           
           {status === 'error' && (
             <div>
-              <div className="text-red-400 mb-4">
+              <div className={`${currentTheme.error} mb-4`}>
                 ❌ ERROR: {message.toUpperCase()}
               </div>
               <button
                 onClick={handleReturnToSite}
-                className="w-full border border-green-400 text-green-400 p-2 hover:border-yellow-400 hover:text-yellow-400"
+                className={`w-full border ${currentTheme.border} ${currentTheme.text} p-2 focus:outline-none focus:border-yellow-400 ${currentTheme.button}`}
               >
                 RETURN TO IRC
               </button>

@@ -814,7 +814,7 @@ export default function Home() {
     setCurrentChannel(channelId);
     setMessages([]); // Clear messages when switching
     setUsers([]); // Clear users when switching
-    setChannelMembers([]); // Clear channel members when switching
+    // Keep existing channelMembers to avoid flashing, will be updated by fetchChannelMembers
     
     if (authUser) {
       // Fetch existing messages for this channel
@@ -975,11 +975,14 @@ export default function Home() {
   };
 
   const getUserRoleColor = (username: string) => {
+    // Only show role-based colors if we have loaded channel members for the current channel
     const member = channelMembers.find(m => m.username.toLowerCase() === username.toLowerCase());
     if (member) {
       return getRoleColor(member);
     }
-    // Fallback to default user color if not found in channel members
+    
+    // Always use consistent fallback colors (not loading-based)
+    // This prevents flashing between different colors
     const userColors = ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
     const colorIndex = username.charCodeAt(0) % userColors.length;
     return userColors[colorIndex];

@@ -28,10 +28,20 @@ export default function CreateChannelModal({
     setError('');
 
     try {
-      // Get current user
+      // Get current user and profile
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('You must be logged in to create channels');
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+      
+      if (!profile) {
+        throw new Error('Profile not found');
       }
 
       // Validate channel name (only lowercase letters, numbers, hyphens)
@@ -53,7 +63,7 @@ export default function CreateChannelModal({
         throw new Error('A channel with this name already exists');
       }
 
-      const { error: insertError } = await supabase
+      const { data: channelData, error: insertError } = await supabase
         .from('channels')
         .insert([
           {
@@ -62,9 +72,88 @@ export default function CreateChannelModal({
             category_id: selectedCategoryId || null,
             created_by: user.id,
           },
-        ]);
+        ])
+        .select();
 
       if (insertError) throw insertError;
+
+      const channelId = channelData[0].id;
+
+      // Check if Owner role already exists, if not create it
+      let ownerRoleId: string;
+      const { data: existingOwnerRole } = await supabase
+        .from('channel_roles')
+        .select('id')
+        .eq('channel_id', channelId)
+        .eq('name', 'Owner')
+        .single();
+
+      if (existingOwnerRole) {
+        ownerRoleId = existingOwnerRole.id;
+      } else {
+        const { data: newOwnerRole, error: roleError } = await supabase
+          .from('channel_roles')
+          .insert([
+            {
+              channel_id: channelId,
+              name: 'Owner',
+              color: 'text-red-400',
+              permissions: {
+                can_kick: true,
+                can_ban: true,
+                can_manage_roles: true,
+                can_manage_channel: true,
+                can_delete_messages: true
+              },
+              sort_order: 0,
+              created_by: user.id,
+            },
+          ])
+          .select();
+
+        if (roleError) throw roleError;
+        ownerRoleId = newOwnerRole![0].id;
+      }
+
+      // Check if Member role already exists, if not create it  
+      const { data: existingMemberRole } = await supabase
+        .from('channel_roles')
+        .select('id')
+        .eq('channel_id', channelId)
+        .eq('name', 'Member')
+        .single();
+
+      if (!existingMemberRole) {
+        const { error: memberRoleError } = await supabase
+          .from('channel_roles')
+          .insert([
+            {
+              channel_id: channelId,
+              name: 'Member',
+              color: 'text-green-400',
+              permissions: {},
+              sort_order: 100,
+              created_by: user.id,
+            },
+          ]);
+
+        if (memberRoleError) throw memberRoleError;
+      }
+
+      // Add creator as Owner in channel_members
+      const { error: memberError } = await supabase
+        .from('channel_members')
+        .insert([
+          {
+            channel_id: channelId,
+            user_id: user.id,
+            username: profile.username,
+            role: 'owner', // Legacy field
+            role_id: ownerRoleId,
+          },
+        ]);
+
+      if (memberError) throw memberError;
 
       onSuccess();
       onClose();

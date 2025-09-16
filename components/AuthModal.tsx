@@ -5,9 +5,10 @@ import { supabase } from '@/lib/supabase';
 
 interface AuthModalProps {
   onAuthSuccess: (user: { id: string; username: string }) => void;
+  onCancel?: () => void;
 }
 
-export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
+export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,6 +74,24 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
             .single();
 
           if (profile) {
+            // Add new user to global channel
+            const { data: globalChannel } = await supabase
+              .from('channels')
+              .select('id')
+              .eq('name', 'global')
+              .single();
+            
+            if (globalChannel) {
+              await supabase
+                .from('channel_members')
+                .insert({
+                  channel_id: globalChannel.id,
+                  user_id: data.user.id,
+                  username: profile.username,
+                  role: 'member'
+                });
+            }
+            
             onAuthSuccess({ id: data.user.id, username: profile.username });
           } else {
             throw new Error('Profile was not created automatically');
@@ -158,7 +177,7 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
               {loading ? 'PROCESSING...' : (isLogin ? 'LOGIN' : 'REGISTER')}
             </button>
 
-            <div className="text-center">
+            <div className="text-center space-y-2">
               <button
                 type="button"
                 onClick={() => {
@@ -168,10 +187,20 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
                   setPassword('');
                   setUsername('');
                 }}
-                className="text-gray-400 hover:text-green-400 text-xs"
+                className="text-gray-400 hover:text-green-400 text-xs block w-full"
               >
                 {isLogin ? 'NEED AN ACCOUNT? REGISTER' : 'HAVE AN ACCOUNT? LOGIN'}
               </button>
+              
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="text-red-400 hover:text-red-300 text-xs block w-full"
+                >
+                  CANCEL / GO BACK
+                </button>
+              )}
             </div>
           </form>
         </div>

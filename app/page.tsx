@@ -54,37 +54,60 @@ export default function Home() {
   const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
   const [pendingDeleteChannel, setPendingDeleteChannel] = useState<{id: string, name: string, requestedBy: string} | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const [unreadMentions, setUnreadMentions] = useState<Record<string, number>>({});
+
+  const fetchUnreadMentions = useCallback(async () => {
+    if (!userId) return;
+    
+    const { data: mentions } = await supabase
+      .from('mentions')
+      .select('channel_id')
+      .eq('mentioned_user_id', userId)
+      .eq('is_read', false);
+    
+    if (mentions) {
+      const mentionCounts: Record<string, number> = {};
+      mentions.forEach(mention => {
+        mentionCounts[mention.channel_id] = (mentionCounts[mention.channel_id] || 0) + 1;
+      });
+      setUnreadMentions(mentionCounts);
+    }
+  }, [userId]);
 
   // Fetch categories with channels from Supabase
   const fetchCategoriesAndChannels = useCallback(async () => {
-    // Fetch categories with channels
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from('channel_categories')
-      .select(`
-        id,
-        name,
-        emoji,
-        color,
-        sort_order,
-        channels (
+    // OPTIMIZED: Bundle categories and uncategorized channels in parallel
+    const [categoriesResult, uncategorizedResult] = await Promise.all([
+      supabase
+        .from('channel_categories')
+        .select(`
           id,
           name,
-          topic,
-          category_id
-        )
-      `)
-      .order('sort_order');
+          emoji,
+          color,
+          sort_order,
+          channels (
+            id,
+            name,
+            topic,
+            category_id
+          )
+        `)
+        .order('sort_order'),
+      
+      supabase
+        .from('channels')
+        .select('id, name, topic, category_id')
+        .is('category_id', null)
+    ]);
 
-    if (categoriesError) {
-      console.error('Error fetching categories:', categoriesError);
+    const categoriesData = categoriesResult.data;
+    const uncategorizedChannels = uncategorizedResult.data;
+
+    if (categoriesResult.error) {
+      console.error('Error fetching categories:', categoriesResult.error);
       return;
     }
-
-    // Also fetch uncategorized channels
-    const { data: uncategorizedChannels } = await supabase
-      .from('channels')
-      .select('id, name, topic, category_id')
-      .is('category_id', null);
 
     const categories = [...(categoriesData || [])];
     
@@ -106,6 +129,11 @@ export default function Home() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setCategories(categories as any);
     
+    // Fetch unread mentions
+    if (userId) {
+      fetchUnreadMentions();
+    }
+    
     // Auto-select first channel if none selected
     if (!currentChannel && categories.length > 0) {
       // Find first channel in any category
@@ -126,7 +154,7 @@ export default function Home() {
     if (categories.length > 0) {
       setExpandedCategories(new Set([categories[0].id]));
     }
-  }, [currentChannel]);
+  }, [currentChannel, fetchUnreadMentions, userId]);
 
   useEffect(() => {
     // Check for existing session
@@ -171,6 +199,35 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isJoined, currentChannel]);
 
+  // Listen for new mentions
+  useEffect(() => {
+    if (!userId) return;
+    
+    const mentionChannel = supabase
+      .channel('mentions')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'mentions',
+          filter: `mentioned_user_id=eq.${userId}`
+        },
+        (payload) => {
+          const mention = payload.new;
+          setUnreadMentions(prev => ({
+            ...prev,
+            [mention.channel_id]: (prev[mention.channel_id] || 0) + 1
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(mentionChannel);
+    };
+  }, [userId]);
+
   const joinChannel = async (channelId: string) => {
     // Cleanup old channel
     if (channel) {
@@ -183,8 +240,6 @@ export default function Home() {
 
     // Listen for broadcast messages (instant)
     newChannel.on('broadcast', { event: 'message' }, (payload) => {
-      console.log('📨 Received broadcast message:', payload.payload);
-      
       // Don't add message if it's from ourselves (we already added it locally)
       if (payload.payload.username !== username) {
         setMessages(prev => [...prev, payload.payload]);
@@ -192,15 +247,13 @@ export default function Home() {
     });
 
     // Listen for moderation events
-    newChannel.on('broadcast', { event: 'moderation' }, (payload) => {
-      console.log('Received moderation event:', payload);
+    newChannel.on('broadcast', { event: 'moderation' }, (_payload) => {
       // Refresh channel members when moderation happens
       fetchChannelMembers(channelId);
     });
 
     // Listen for MOTD updates
     newChannel.on('broadcast', { event: 'motd_update' }, (payload) => {
-      console.log('Received MOTD update:', payload);
       setCurrentMotd(payload.payload.motd.toUpperCase());
       
       // Show MOTD update message
@@ -215,17 +268,26 @@ export default function Home() {
     });
 
     // Listen for typing indicators  
-    newChannel.on('broadcast', { event: 'typing' }, (payload) => {
-      console.log('User typing:', payload.payload.username);
+    newChannel.on('broadcast', { event: 'typing' }, (_payload) => {
+      // Handle typing indicator if needed
     });
 
     // Track online users via presence (all users can see this)
     newChannel.on('presence', { event: 'sync' }, () => {
       const presenceState = newChannel.presenceState();
-      const onlineUsers = Object.values(presenceState).flat() as unknown as User[];
+      const allConnections = Object.values(presenceState).flat() as unknown as User[];
+      
+      // FIXED: Deduplicate users by ID (multiple tabs = multiple connections)
+      const uniqueUsers = allConnections.reduce((unique: User[], user) => {
+        const existingUser = unique.find(u => u.id === user.id);
+        if (!existingUser) {
+          unique.push(user);
+        }
+        return unique;
+      }, []);
       
       // Preserve role information when updating presence
-      const usersWithRoles = onlineUsers.map(user => {
+      const usersWithRoles = uniqueUsers.map(user => {
         const member = channelMembers.find(m => m.user_id === user.id);
         return {
           ...user,
@@ -236,19 +298,18 @@ export default function Home() {
     });
 
     // User joined
-    newChannel.on('presence', { event: 'join' }, ({ newPresences }) => {
-      console.log('User joined:', newPresences);
+    newChannel.on('presence', { event: 'join' }, ({ newPresences: _newPresences }) => {
+      // Handle user join if needed
     });
 
     // User left  
-    newChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
-      console.log('User left:', leftPresences);
+    newChannel.on('presence', { event: 'leave' }, ({ leftPresences: _leftPresences }) => {
+      // Handle user leave if needed
     });
 
     // Subscribe to channel
     newChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        console.log(`Connected to ${channelName}`);
         setConnected(true);
         
         // Track our presence only if authenticated
@@ -482,6 +543,71 @@ export default function Home() {
     return true;
   };
 
+  const detectAndStoreMentions = async (content: string, messageId: string) => {
+    const mentionRegex = /@(\w+)/g;
+    const mentions = [];
+    let match;
+    
+    while ((match = mentionRegex.exec(content)) !== null) {
+      const mentionedUsername = match[1].toLowerCase();
+      mentions.push(mentionedUsername);
+    }
+    
+    if (mentions.length > 0) {
+      // Get channel members to validate mentions
+      const { data: members } = await supabase
+        .from('channel_members')
+        .select('user_id, username')
+        .eq('channel_id', currentChannel)
+        .in('username', mentions.map(m => m.toLowerCase()));
+      
+      if (members && members.length > 0) {
+        const mentionInserts = members
+          .filter(member => member.user_id !== userId) // Don't mention self
+          .map(member => ({
+            message_id: messageId,
+            channel_id: currentChannel,
+            mentioned_user_id: member.user_id,
+            mentioned_username: member.username,
+            mentioner_user_id: userId,
+            mentioner_username: username
+          }));
+        
+        if (mentionInserts.length > 0) {
+          await supabase
+            .from('mentions')
+            .insert(mentionInserts);
+        }
+      }
+    }
+  };
+
+  const formatMessageContent = (content: string) => {
+    // Highlight @mentions
+    const mentionRegex = /@(\w+)/g;
+    const parts = content.split(mentionRegex);
+    
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        // This is a mentioned username
+        const isMentioningSelf = part.toLowerCase() === username.toLowerCase();
+        return (
+          <span
+            key={index}
+            className={`font-bold ${
+              isMentioningSelf 
+                ? 'bg-yellow-600 text-black px-1 rounded' 
+                : 'text-cyan-400'
+            }`}
+          >
+            @{part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   const performChannelDeletion = async (channelToDelete: {id: string, name: string}) => {
     if (!authUser || !userId) return;
 
@@ -641,7 +767,6 @@ export default function Home() {
         }
 
         if (command === 'roles') {
-          console.log('🔍 Checking roles command - userRole:', userRole, 'type:', typeof userRole);
           if (userRole !== 'Owner') {
             const errorMsg = {
               id: `error_${Date.now()}`,
@@ -1053,16 +1178,14 @@ export default function Home() {
       }, 0);
 
       // Send via broadcast for instant delivery to others
-      console.log('📤 Sending broadcast message:', message);
       await channel.send({
         type: 'broadcast',
         event: 'message',
         payload: message
       });
-      console.log('✅ Message sent successfully');
 
       // Also save to database
-      await supabase
+      const { data: insertedMessage } = await supabase
         .from('messages')
         .insert({
           channel_id: currentChannel,
@@ -1070,7 +1193,14 @@ export default function Home() {
           username: username,
           content: trimmedInput,
           message_type: 'message'
-        });
+        })
+        .select()
+        .single();
+
+      // Detect and store mentions
+      if (insertedMessage) {
+        await detectAndStoreMentions(trimmedInput, insertedMessage.id);
+      }
 
       setInputMessage('');
       
@@ -1085,37 +1215,63 @@ export default function Home() {
     }
   };
 
+  const markMentionsAsRead = async (channelId: string) => {
+    if (!userId) return;
+    
+    await supabase
+      .from('mentions')
+      .update({ is_read: true })
+      .eq('channel_id', channelId)
+      .eq('mentioned_user_id', userId)
+      .eq('is_read', false);
+    
+    // Update local state
+    setUnreadMentions(prev => {
+      const updated = { ...prev };
+      delete updated[channelId];
+      return updated;
+    });
+  };
+
   const switchChannel = async (channelId: string) => {
     setCurrentChannel(channelId);
     setMessages([]); // Clear messages when switching
     setUsers([]); // Clear users when switching
     setLocalMessages([]); // Clear local messages when switching
     setPendingDeleteChannel(null); // Clear pending delete when switching
-    // Keep existing channelMembers to avoid flashing, will be updated by fetchChannelMembers
     
-    // Fetch channel info including MOTD
-    const { data: channelData } = await supabase
-      .from('channels')
-      .select('name, topic, motd')
-      .eq('id', channelId)
-      .single();
+    // Mark mentions as read in this channel
+    await markMentionsAsRead(channelId);
+    
+    // OPTIMIZED: Bundle channel data queries in parallel
+    const [channelResult, messagesResult] = await Promise.all([
+      // Channel info
+      supabase
+        .from('channels')
+        .select('name, topic, motd')
+        .eq('id', channelId)
+        .single(),
+      
+      // Recent messages  
+      supabase
+        .from('messages')
+        .select('*')
+        .eq('channel_id', channelId)
+        .order('created_at', { ascending: true })
+        .limit(50)
+    ]);
 
+    // Process channel data
+    const channelData = channelResult.data;
     if (channelData?.motd) {
       setCurrentMotd(channelData.motd.toUpperCase());
     } else {
       setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
     }
 
-    // Fetch existing messages for this channel (available to all users)
-    const { data: existingMessages } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('channel_id', channelId)
-      .order('created_at', { ascending: true })
-      .limit(50);
-
-    if (existingMessages) {
-      const formattedMessages = existingMessages.map(msg => ({
+    // Process messages
+    if (messagesResult.data) {
+      const formattedMessages = messagesResult.data.map(msg => ({
         id: msg.id,
         username: msg.username,
         content: msg.content,
@@ -1204,22 +1360,15 @@ export default function Home() {
       .eq('channel_id', channelId);
 
     if (members) {
-      console.log('📥 Setting channelMembers:', members.length, 'members loaded');
       setChannelMembers(members);
 
       // Set current user's role and permissions only if authenticated
       if (authUser && userId) {
         const currentUserMember = members.find(m => m.user_id === userId);
         if (currentUserMember?.channel_role) {
-          console.log('🔍 Setting userRole to:', currentUserMember.channel_role.name);
-          console.log('🔍 Full channel_role object:', currentUserMember.channel_role);
           setUserRole(currentUserMember.channel_role.name);
           setUserPermissions(currentUserMember.channel_role.permissions);
         } else {
-          console.log('🔍 No channel_role found, checking legacy role field');
-          console.log('🔍 Current user member:', currentUserMember);
-          console.log('🔍 Legacy role field:', currentUserMember?.role);
-          
           // Fallback to legacy role field if no channel_role
           if (currentUserMember?.role) {
             // Convert legacy role to proper case
@@ -1227,7 +1376,6 @@ export default function Home() {
             const properRole = legacyRole === 'owner' ? 'Owner' : 
                               legacyRole === 'moderator' ? 'Moderator' :
                               legacyRole === 'admin' ? 'Admin' : 'Member';
-            console.log('🔍 Using legacy role, converting', legacyRole, 'to', properRole);
             setUserRole(properRole);
             setUserPermissions(legacyRole === 'owner' ? {can_kick: true, can_ban: true, can_manage_roles: true} : {});
           } else {
@@ -1296,7 +1444,6 @@ export default function Home() {
     // Only show role-based colors if we have loaded channel members for the current channel
     const member = channelMembers.find(m => m.username.toLowerCase() === username.toLowerCase());
     if (member) {
-      console.log(`🎨 Role color for ${username}: ${getRoleColor(member)} (from member data)`);
       return getRoleColor(member);
     }
     
@@ -1309,7 +1456,6 @@ export default function Home() {
     // This prevents flashing between different colors
     const userColors = ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
     const colorIndex = username.charCodeAt(0) % userColors.length;
-    console.log(`🎨 Fallback color for ${username}: ${userColors[colorIndex]} (no member data found, channelMembers.length: ${channelMembers.length})`);
     return userColors[colorIndex];
   };
 
@@ -1616,8 +1762,17 @@ export default function Home() {
                                   : 'text-green-400 hover:text-yellow-400'
                               }`}
                             >
-                              {currentChannel === channel.id ? '> ' : '  '}
-                              #{channel.name.toUpperCase()}
+                              <span className="flex items-center justify-between">
+                                <span>
+                                  {currentChannel === channel.id ? '> ' : '  '}
+                                  #{channel.name.toUpperCase()}
+                                </span>
+                                {unreadMentions[channel.id] && (
+                                  <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
+                                    @{unreadMentions[channel.id]}
+                                  </span>
+                                )}
+                              </span>
                             </div>
                           ))
                         )
@@ -1664,8 +1819,17 @@ export default function Home() {
                                 : 'text-green-400 hover:text-yellow-400'
                             }`}
                           >
-                            {currentChannel === channel.id ? '> ' : '  '}
-                            #{channel.name.toUpperCase()}
+                            <span className="flex items-center justify-between">
+                              <span>
+                                {currentChannel === channel.id ? '> ' : '  '}
+                                #{channel.name.toUpperCase()}
+                              </span>
+                              {unreadMentions[channel.id] && (
+                                <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
+                                  @{unreadMentions[channel.id]}
+                                </span>
+                              )}
+                            </span>
                           </div>
                         ))
                       )
@@ -1697,9 +1861,8 @@ export default function Home() {
             scrollbarColor: '#1f2937 #000000'
           }}>
             <div className="space-y-1">
-              <div className="hidden sm:block">*** MOTD: {currentMotd} ***</div>
-              <div className="hidden sm:block">*** CONNECTING TO IRC CHAT</div>
               <div className="hidden sm:block">*** JOINING #{getCurrentChannelName().toUpperCase()}</div>
+              <div className="hidden sm:block">*** MOTD: {currentMotd} ***</div>
               {!authUser && (
                 <div className="text-yellow-400">*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
               )}
@@ -1710,7 +1873,7 @@ export default function Home() {
                 const userColor = getUserRoleColor(message.username);
                 return (
                   <div key={message.id} className="text-green-400 break-words">
-                    <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {message.content.toUpperCase()}
+                    <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {formatMessageContent(message.content.toUpperCase())}
                   </div>
                 );
               })}

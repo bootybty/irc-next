@@ -10,22 +10,9 @@ interface CreateCategoryModalProps {
 
 export default function CreateCategoryModal({ onClose, onSuccess }: CreateCategoryModalProps) {
   const [name, setName] = useState('');
-  const [emoji, setEmoji] = useState('📁');
-  const [color, setColor] = useState('text-green-400');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const colorOptions = [
-    { value: 'text-green-400', label: 'GREEN' },
-    { value: 'text-blue-400', label: 'BLUE' },
-    { value: 'text-yellow-400', label: 'YELLOW' },
-    { value: 'text-red-400', label: 'RED' },
-    { value: 'text-purple-400', label: 'PURPLE' },
-    { value: 'text-cyan-400', label: 'CYAN' },
-    { value: 'text-magenta-400', label: 'MAGENTA' },
-  ];
-
-  const emojiOptions = ['📁', '💬', '🆘', '💻', '🌐', '📱', '🎮', '🖥️', '🎵', '📚', '⚡', '🔧', '🎨', '📊'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +36,8 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
         .insert([
           {
             name: name.trim(),
-            emoji,
-            color,
+            emoji: '📁',
+            color: 'text-green-400',
             sort_order: nextSortOrder,
           },
         ]);
@@ -91,47 +78,6 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
                 maxLength={50}
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-green-300 mb-1">EMOJI:</label>
-              <div className="grid grid-cols-7 gap-2 mb-2">
-                {emojiOptions.map((emojiOption) => (
-                  <button
-                    key={emojiOption}
-                    type="button"
-                    onClick={() => setEmoji(emojiOption)}
-                    className={`p-2 border text-center hover:border-yellow-400 ${
-                      emoji === emojiOption ? 'border-yellow-400 bg-yellow-400 bg-opacity-20' : 'border-green-400'
-                    }`}
-                  >
-                    {emojiOption}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="text"
-                value={emoji}
-                onChange={(e) => setEmoji(e.target.value)}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
-                placeholder="OR TYPE CUSTOM EMOJI..."
-                maxLength={10}
-              />
-            </div>
-
-            <div>
-              <label className="block text-green-300 mb-1">COLOR:</label>
-              <select
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
-              >
-                {colorOptions.map((colorOption) => (
-                  <option key={colorOption.value} value={colorOption.value}>
-                    {colorOption.label}
-                  </option>
-                ))}
-              </select>
             </div>
 
             {error && (

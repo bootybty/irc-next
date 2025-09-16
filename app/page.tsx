@@ -78,25 +78,17 @@ function HomeContent() {
   };
 
   const handleChannelSwitch = useCallback(async (channelId: string) => {
-    console.log(`🔄 Switching to channel: ${channelId}`);
-    
     // Clear messages first
     chat.clearMessages();
     
     // Switch channel
-    console.log(`📡 Switching channel...`);
     const result = await channel.switchChannel(channelId);
-    console.log(`📡 Channel switch result:`, result);
     
     // Always load messages regardless of switch result
-    console.log(`📝 Loading messages for channel: ${channelId}`);
     await chat.loadChannelMessages(channelId);
     
     // Then join realtime channel
-    console.log(`🔗 Joining realtime channel...`);
     await chat.joinChannel(channelId);
-    
-    console.log(`✅ Channel switch complete`);
   }, [chat, channel]);
 
   useEffect(() => {

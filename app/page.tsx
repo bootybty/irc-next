@@ -63,6 +63,7 @@ export default function Home() {
   const [showCommandSuggestions, setShowCommandSuggestions] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<Array<{command: string, description: string, requiresRole?: string}>>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
+  const [globalOnlineUsers, setGlobalOnlineUsers] = useState<number>(0);
 
   useEffect(() => {
     // Check for existing session
@@ -80,6 +81,9 @@ export default function Home() {
           setUsername(profile.username);
           setUserId(session.user.id);
           setShowAuthModal(false);
+          
+          // Setup global presence tracking for existing session
+          setTimeout(() => setupGlobalPresence(), 1000);
         }
       }
     };
@@ -187,8 +191,12 @@ export default function Home() {
 
     // Listen for broadcast messages (instant)
     newChannel.on('broadcast', { event: 'message' }, (payload) => {
-      console.log('Received broadcast message:', payload);
-      setMessages(prev => [...prev, payload.payload]);
+      console.log('📨 Received broadcast message:', payload.payload);
+      
+      // Don't add message if it's from ourselves (we already added it locally)
+      if (payload.payload.username !== username) {
+        setMessages(prev => [...prev, payload.payload]);
+      }
     });
 
     // Listen for moderation events
@@ -247,6 +255,31 @@ export default function Home() {
     });
 
     setChannel(newChannel);
+  };
+
+  const setupGlobalPresence = async () => {
+    if (!authUser || !userId) return;
+
+    // Create a global presence channel for tracking all online users
+    const globalChannel = supabase.channel('global-presence');
+
+    // Track global online users
+    globalChannel.on('presence', { event: 'sync' }, () => {
+      const presenceState = globalChannel.presenceState();
+      const onlineCount = Object.keys(presenceState).length;
+      setGlobalOnlineUsers(onlineCount);
+    });
+
+    // Subscribe and track this user's global presence
+    await globalChannel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await globalChannel.track({
+          user_id: userId,
+          username: username,
+          online_at: new Date().toISOString(),
+        });
+      }
+    });
   };
 
   const handleModerationCommand = async (command: string, args: string[]) => {
@@ -787,12 +820,17 @@ export default function Home() {
         channel: currentChannel
       };
 
-      // Send via broadcast for instant delivery
+      // Add message to local state immediately for sender
+      setMessages(prev => [...prev, message]);
+
+      // Send via broadcast for instant delivery to others
+      console.log('📤 Sending broadcast message:', message);
       await channel.send({
         type: 'broadcast',
         event: 'message',
         payload: message
       });
+      console.log('✅ Message sent successfully');
 
       // Also save to database
       await supabase
@@ -848,6 +886,9 @@ export default function Home() {
     setUsername(user.profile.username);
     setUserId(user.id);
     setShowAuthModal(false);
+    
+    // Setup global presence tracking
+    setTimeout(() => setupGlobalPresence(), 1000);
   };
 
   const handleLogout = async () => {
@@ -1552,10 +1593,10 @@ export default function Home() {
       {/* Bottom Status */}
       <div className="border-t border-green-400 p-1 text-center text-xs flex-shrink-0">
         <div className="hidden sm:block">
-          USERS: {users.length} | {connected ? 'CONNECTED' : 'DISCONNECTED'}
+          ONLINE: {globalOnlineUsers} | {connected ? 'CONNECTED' : 'DISCONNECTED'}
         </div>
         <div className="sm:hidden">
-          USERS: {users.length} | {connected ? 'CONNECTED' : 'DISCONNECTED'}
+          ONLINE: {globalOnlineUsers} | {connected ? 'CONNECTED' : 'DISCONNECTED'}
         </div>
       </div>
 

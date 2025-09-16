@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface AuthModalProps {
-  onAuthSuccess: (user: any) => void;
+  onAuthSuccess: (user: { id: string; username: string }) => void;
 }
 
 export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
@@ -39,7 +39,7 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
             .single();
 
           if (profile) {
-            onAuthSuccess({ ...data.user, username: profile.username, email: profile.email });
+            onAuthSuccess({ id: data.user.id, username: profile.username });
           } else {
             throw new Error('Profile not found after login');
           }
@@ -73,14 +73,14 @@ export default function AuthModal({ onAuthSuccess }: AuthModalProps) {
             .single();
 
           if (profile) {
-            onAuthSuccess({ ...data.user, username: profile.username, email: profile.email });
+            onAuthSuccess({ id: data.user.id, username: profile.username });
           } else {
             throw new Error('Profile was not created automatically');
           }
         }
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }

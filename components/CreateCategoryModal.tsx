@@ -59,8 +59,8 @@ export default function CreateCategoryModal({ onClose, onSuccess }: CreateCatego
 
       onSuccess();
       onClose();
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }

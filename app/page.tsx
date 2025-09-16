@@ -415,9 +415,9 @@ function HomeContent() {
                           }`}
                         >
                           <span className="flex items-center justify-between">
-                            <span>
-                              <span className="w-4 inline-block">{channel.currentChannel === ch.id ? '>' : ''}</span>
-                              #{ch.name.toUpperCase()}
+                            <span className="flex items-center min-w-0">
+                              <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
+                              <span className="truncate">#{ch.name.toUpperCase()}</span>
                             </span>
                             {channel.unreadMentions[ch.id] && (
                               <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -444,9 +444,9 @@ function HomeContent() {
                           }`}
                         >
                           <span className="flex items-center justify-between">
-                            <span>
-                              <span className="w-4 inline-block">{channel.currentChannel === ch.id ? '>' : ''}</span>
-                              #{ch.name.toUpperCase()}
+                            <span className="flex items-center min-w-0">
+                              <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
+                              <span className="truncate">#{ch.name.toUpperCase()}</span>
                             </span>
                             {channel.unreadMentions[ch.id] && (
                               <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -464,7 +464,9 @@ function HomeContent() {
                           onClick={() => channel.toggleCategory(category.id)}
                           className={`cursor-pointer ${currentTheme.accent} ${currentTheme.button} mb-1`}
                         >
-                          {channel.expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
+                          <span className="truncate">
+                            {channel.expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
+                          </span>
                         </div>
                         {channel.expandedCategories.has(category.id) && (
                           category.channels?.length === 0 ? (
@@ -484,9 +486,9 @@ function HomeContent() {
                                 }`}
                               >
                                 <span className="flex items-center justify-between">
-                                  <span>
-                                    {channel.currentChannel === ch.id ? '> ' : '  '}
-                                    #{ch.name.toUpperCase()}
+                                  <span className="flex items-center min-w-0">
+                                    <span className="flex-shrink-0">{channel.currentChannel === ch.id ? '> ' : '  '}</span>
+                                    <span className="truncate">#{ch.name.toUpperCase()}</span>
                                   </span>
                                   {channel.unreadMentions[ch.id] && (
                                     <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -528,9 +530,9 @@ function HomeContent() {
                         }`}
                       >
                         <span className="flex items-center justify-between">
-                          <span>
-                            <span className="w-4 inline-block">{channel.currentChannel === ch.id ? '>' : ''}</span>
-                            #{ch.name.toUpperCase()}
+                          <span className="flex items-center min-w-0">
+                            <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
+                            <span className="truncate">#{ch.name.toUpperCase()}</span>
                           </span>
                           {channel.unreadMentions[ch.id] && (
                             <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -554,9 +556,9 @@ function HomeContent() {
                         }`}
                       >
                         <span className="flex items-center justify-between">
-                          <span>
-                            <span className="w-4 inline-block">{channel.currentChannel === ch.id ? '>' : ''}</span>
-                            #{ch.name.toUpperCase()}
+                          <span className="flex items-center min-w-0">
+                            <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
+                            <span className="truncate">#{ch.name.toUpperCase()}</span>
                           </span>
                           {channel.unreadMentions[ch.id] && (
                             <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -575,7 +577,9 @@ function HomeContent() {
                           onClick={() => channel.toggleCategory(category.id)}
                           className={`cursor-pointer ${currentTheme.accent} ${currentTheme.button} font-medium flex-1`}
                         >
-                          {channel.expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
+                          <span className="truncate">
+                            {channel.expandedCategories.has(category.id) ? '[-]' : '[+]'} {category.name.toUpperCase()}
+                          </span>
                         </div>
                       </div>
                       {channel.expandedCategories.has(category.id) && (
@@ -593,9 +597,9 @@ function HomeContent() {
                               }`}
                             >
                               <span className="flex items-center justify-between">
-                                <span>
-                                  <span className="w-4 inline-block">{channel.currentChannel === ch.id ? '>' : ''}</span>
-                                  #{ch.name.toUpperCase()}
+                                <span className="flex items-center min-w-0">
+                                  <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
+                                  <span className="truncate">#{ch.name.toUpperCase()}</span>
                                 </span>
                                 {channel.unreadMentions[ch.id] && (
                                   <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -620,10 +624,14 @@ function HomeContent() {
           {/* Header */}
           <div className={`border-b ${currentTheme.border} p-2`}>
             <div className="text-center hidden sm:block">
-              === CONNECTED TO #{channel.getCurrentChannelName().toUpperCase()} ===
+              <div className="truncate">
+                === CONNECTED TO #{channel.getCurrentChannelName().toUpperCase()} ===
+              </div>
             </div>
             <div className="text-center sm:hidden">
-              #{channel.getCurrentChannelName().toUpperCase()}
+              <div className="truncate px-2">
+                #{channel.getCurrentChannelName().toUpperCase()}
+              </div>
             </div>
           </div>
 
@@ -709,7 +717,7 @@ function HomeContent() {
           <div className={`border-t ${currentTheme.border} p-2`}>
             {auth.authUser ? (
               <div className="flex items-center">
-                <span className={`${currentTheme.accent} hidden sm:inline`}>[#{channel.getCurrentChannelName().toUpperCase()}]&gt; </span>
+                <span className={`${currentTheme.accent} hidden sm:inline truncate max-w-32`}>[#{channel.getCurrentChannelName().toUpperCase()}]&gt; </span>
                 <span className={`${currentTheme.accent} sm:hidden`}>&gt; </span>
                 <textarea 
                   value={ui.inputMessage}

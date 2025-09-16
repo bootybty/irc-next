@@ -53,6 +53,9 @@ export default function Home() {
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<number>(0);
   const [allGlobalUsers, setAllGlobalUsers] = useState<User[]>([]);
   const [currentMotd, setCurrentMotd] = useState<string>('WELCOME TO THE RETRO IRC EXPERIENCE');
+  const [currentTopic, setCurrentTopic] = useState<string>('');
+  const [joinStatus, setJoinStatus] = useState<'joining' | 'success' | 'failed' | null>(null);
+  const [joiningChannelName, setJoiningChannelName] = useState<string>('');
   const [pendingDeleteChannel, setPendingDeleteChannel] = useState<{id: string, name: string, requestedBy: string} | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [unreadMentions, setUnreadMentions] = useState<Record<string, number>>({});
@@ -791,7 +794,7 @@ export default function Home() {
           const helpMsg = {
             id: `help_${Date.now()}`,
             username: 'SYSTEM',
-            content: 'Available commands: /kick <user> [reason], /ban <user> [reason], /mod <user>, /unmod <user>, /motd <message>, /delete, /info',
+            content: 'Available commands: /kick <user> [reason], /ban <user> [reason], /mod <user>, /unmod <user>, /topic <message>, /motd <message>, /delete, /info',
             timestamp: new Date(),
                 channel: currentChannel
           };
@@ -963,6 +966,79 @@ export default function Home() {
               content: `Error creating role: ${error instanceof Error ? error.message : 'Unknown error'}`,
               timestamp: new Date(),
                     channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+          }
+
+          setInputMessage('');
+          return;
+        }
+
+        if (command === 'topic') {
+          // Check if user is channel owner or moderator
+          const canSetTopic = userRole === 'owner' || userRole === 'moderator' || userRole === 'admin' || userRole === 'Owner' || userRole === 'Moderator' || userRole === 'Admin';
+          if (!canSetTopic) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: 'Access denied. You need owner or moderator privileges to set topic.',
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            setInputMessage('');
+            return;
+          }
+
+          const newTopic = args.join(' ');
+          
+          if (!newTopic) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: 'Usage: /topic <message> - Example: /topic This channel is for discussing coding topics',
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            setInputMessage('');
+            return;
+          }
+
+          try {
+            const { error } = await supabase
+              .from('channels')
+              .update({ topic: newTopic })
+              .eq('id', currentChannel);
+
+            if (error) {
+              const errorMsg = {
+                id: `error_${Date.now()}`,
+                username: 'SYSTEM',
+                content: `Failed to set topic: ${error.message}`,
+                timestamp: new Date(),
+                channel: currentChannel
+              };
+              setMessages(prev => [...prev, errorMsg]);
+            } else {
+              setCurrentTopic(newTopic); // Update local state immediately
+              
+              const successMsg = {
+                id: `success_${Date.now()}`,
+                username: 'SYSTEM',
+                content: `Topic updated by ${username}: ${newTopic}`,
+                timestamp: new Date(),
+                channel: currentChannel
+              };
+              setMessages(prev => [...prev, successMsg]);
+            }
+          } catch (error) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `Error setting topic: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+              channel: currentChannel
             };
             setMessages(prev => [...prev, errorMsg]);
           }
@@ -1284,32 +1360,51 @@ export default function Home() {
   };
 
   const switchChannel = async (channelId: string) => {
+    // Find channel name from categories before starting join process
+    let channelName = 'unknown-channel';
+    for (const category of categories) {
+      const channel = category.channels?.find(c => c.id === channelId);
+      if (channel) {
+        channelName = channel.name;
+        break;
+      }
+    }
+    
     setCurrentChannel(channelId);
     setMessages([]); // Clear messages when switching
     setUsers([]); // Clear users when switching
     setLocalMessages([]); // Clear local messages when switching
     setPendingDeleteChannel(null); // Clear pending delete when switching
+    setJoinStatus('joining'); // Set joining status
+    setJoiningChannelName(channelName); // Store channel name for status messages
     
     // Mark mentions as read in this channel
     await markMentionsAsRead(channelId);
     
-    // OPTIMIZED: Bundle channel data queries in parallel
-    const [channelResult, messagesResult] = await Promise.all([
-      // Channel info
-      supabase
-        .from('channels')
-        .select('name, topic, motd')
-        .eq('id', channelId)
-        .single(),
-      
-      // Recent messages  
-      supabase
-        .from('messages')
-        .select('*')
-        .eq('channel_id', channelId)
-        .order('created_at', { ascending: true })
-        .limit(50)
-    ]);
+    try {
+      // OPTIMIZED: Bundle channel data queries in parallel
+      const [channelResult, messagesResult] = await Promise.all([
+        // Channel info
+        supabase
+          .from('channels')
+          .select('name, topic, motd')
+          .eq('id', channelId)
+          .single(),
+        
+        // Recent messages  
+        supabase
+          .from('messages')
+          .select('*')
+          .eq('channel_id', channelId)
+          .order('created_at', { ascending: true })
+          .limit(50)
+      ]);
+
+      if (channelResult.error) {
+        console.error('Error fetching channel:', channelResult.error);
+        setJoinStatus('failed');
+        return;
+      }
 
     // Process channel data
     const channelData = channelResult.data;
@@ -1317,6 +1412,12 @@ export default function Home() {
       setCurrentMotd(channelData.motd.toUpperCase());
     } else {
       setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
+    }
+    
+    if (channelData?.topic) {
+      setCurrentTopic(channelData.topic);
+    } else {
+      setCurrentTopic('');
     }
 
     // Process messages
@@ -1339,8 +1440,15 @@ export default function Home() {
     // All users fetch channel members for role colors (after joining for authenticated users)
     await fetchChannelMembers(channelId);
     
-    // All users (including lurkers) can join realtime channel for messages
-    await joinChannel(channelId);
+      // All users (including lurkers) can join realtime channel for messages
+      await joinChannel(channelId);
+      
+      // Set success status if we made it this far
+      setJoinStatus('success');
+    } catch (error) {
+      console.error('Error switching channel:', error);
+      setJoinStatus('failed');
+    }
   };
 
   const handleAuthSuccess = (user: { id: string; username: string }) => {
@@ -1513,6 +1621,7 @@ export default function Home() {
     const allCommands = [
       { command: 'help', description: 'Show available commands' },
       { command: 'info', description: 'Show channel information' },
+      { command: 'topic <message>', description: 'Set channel topic', requiresRole: 'Moderator+' },
       { command: 'motd <message>', description: 'Set channel Message of the Day', requiresRole: 'Owner' },
       { command: 'roles', description: 'List all channel roles', requiresRole: 'Owner' },
       { command: 'kick <user> [reason]', description: 'Remove user from channel', requiresPermission: 'can_kick' },
@@ -1527,6 +1636,9 @@ export default function Home() {
       if (!cmd.requiresRole && !cmd.requiresPermission) return true;
       
       if (cmd.requiresRole) {
+        if (cmd.requiresRole === 'Moderator+') {
+          return userRole === 'owner' || userRole === 'moderator' || userRole === 'admin' || userRole === 'Owner' || userRole === 'Moderator' || userRole === 'Admin';
+        }
         return userRole === cmd.requiresRole;
       }
       
@@ -1806,7 +1918,7 @@ export default function Home() {
                           <span className="flex items-center justify-between">
                             <span>
                               {currentChannel === channel.id ? '> ' : '  '}
-                              🌍 #{channel.name.toUpperCase()}
+                              #{channel.name.toUpperCase()}
                             </span>
                             {unreadMentions[channel.id] && (
                               <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -1924,7 +2036,7 @@ export default function Home() {
                         <span className="flex items-center justify-between">
                           <span>
                             {currentChannel === channel.id ? '> ' : '  '}
-                            🌍 #{channel.name.toUpperCase()}
+                            #{channel.name.toUpperCase()}
                           </span>
                           {unreadMentions[channel.id] && (
                             <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
@@ -2031,8 +2143,22 @@ export default function Home() {
             scrollbarColor: '#1f2937 #000000'
           }}>
             <div className="space-y-1">
-              <div className="hidden sm:block">*** JOINING #{getCurrentChannelName().toUpperCase()}</div>
-              <div className="hidden sm:block">*** MOTD: {currentMotd} ***</div>
+              {joinStatus && joiningChannelName && (
+                <div className={`hidden sm:block ${
+                  joinStatus === 'joining' ? 'text-yellow-400' :
+                  joinStatus === 'success' ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  *** {
+                    joinStatus === 'joining' ? `JOINING #${joiningChannelName.toUpperCase()}...` :
+                    joinStatus === 'success' ? `JOINED #${joiningChannelName.toUpperCase()} SUCCESSFULLY` :
+                    `FAILED TO JOIN #${joiningChannelName.toUpperCase()}`
+                  } ***
+                </div>
+              )}
+              {currentTopic && (
+                <div className="hidden sm:block text-cyan-400">*** TOPIC: {currentTopic.toUpperCase()} ***</div>
+              )}
+              <div className="hidden sm:block text-purple-400">*** MOTD: {currentMotd} ***</div>
               {!authUser && (
                 <div className="text-yellow-400">*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
               )}

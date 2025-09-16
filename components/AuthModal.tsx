@@ -16,12 +16,32 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
+    
+    // Handle forgot password
+    if (showForgotPassword) {
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: 'http://localhost:3001/auth/reset-password'
+        });
+        
+        if (error) throw error;
+        
+        setSuccess('Password reset email sent! Please check your email for instructions.');
+        setLoading(false);
+        return;
+      } catch (error: unknown) {
+        setError(error instanceof Error ? error.message : 'Failed to send reset email');
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       if (isLogin) {
@@ -139,15 +159,17 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
         <div className="text-green-400 font-mono text-sm">
           <div className="text-center mb-6">
             <div className="text-green-300 mb-2">
-              {isLogin ? '=== LOGIN TO IRC ===' : '=== REGISTER FOR IRC ==='}
+              {showForgotPassword ? '=== RESET PASSWORD ===' : 
+               isLogin ? '=== LOGIN TO IRC ===' : '=== REGISTER FOR IRC ==='}
             </div>
             <div className="text-xs text-gray-400">
-              {isLogin ? 'ENTER YOUR CREDENTIALS' : 'CREATE NEW ACCOUNT'}
+              {showForgotPassword ? 'ENTER YOUR EMAIL TO RESET PASSWORD' :
+               isLogin ? 'ENTER YOUR CREDENTIALS' : 'CREATE NEW ACCOUNT'}
             </div>
           </div>
 
           <form onSubmit={handleAuth} className="space-y-4">
-            {!isLogin && (
+            {!isLogin && !showForgotPassword && (
               <div>
                 <label className="block text-green-300 mb-1">USERNAME:</label>
                 <input
@@ -178,18 +200,20 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
               />
             </div>
 
-            <div>
-              <label className="block text-green-300 mb-1">PASSWORD:</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
-                placeholder="********"
-                minLength={6}
-                required
-              />
-            </div>
+            {!showForgotPassword && (
+              <div>
+                <label className="block text-green-300 mb-1">PASSWORD:</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-black border border-green-400 text-green-400 p-2 focus:outline-none focus:border-yellow-400"
+                  placeholder="********"
+                  minLength={6}
+                  required
+                />
+              </div>
+            )}
 
             {error && (
               <div className="text-red-400 text-xs">
@@ -205,27 +229,63 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
 
             <button
               type="submit"
-              disabled={loading || !email.trim() || !password.trim() || (!isLogin && !username.trim())}
+              disabled={loading || !email.trim() || (!showForgotPassword && (!password.trim() || (!isLogin && !username.trim())))}
               className="w-full bg-green-400 text-black p-2 hover:bg-yellow-400 disabled:opacity-50"
             >
-              {loading ? 'PROCESSING...' : (isLogin ? 'LOGIN' : 'REGISTER')}
+              {loading ? 'PROCESSING...' : 
+               showForgotPassword ? 'SEND RESET EMAIL' :
+               isLogin ? 'LOGIN' : 'REGISTER'}
             </button>
 
             <div className="text-center space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError('');
-                  setSuccess('');
-                  setEmail('');
-                  setPassword('');
-                  setUsername('');
-                }}
-                className="text-gray-400 hover:text-green-400 text-xs block w-full"
-              >
-                {isLogin ? 'NEED AN ACCOUNT? REGISTER' : 'HAVE AN ACCOUNT? LOGIN'}
-              </button>
+              {!showForgotPassword && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLogin(!isLogin);
+                      setError('');
+                      setSuccess('');
+                      setEmail('');
+                      setPassword('');
+                      setUsername('');
+                    }}
+                    className="text-gray-400 hover:text-green-400 text-xs block w-full"
+                  >
+                    {isLogin ? 'NEED AN ACCOUNT? REGISTER' : 'HAVE AN ACCOUNT? LOGIN'}
+                  </button>
+                  
+                  {isLogin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotPassword(true);
+                        setError('');
+                        setSuccess('');
+                        setPassword('');
+                      }}
+                      className="text-gray-400 hover:text-yellow-400 text-xs block w-full"
+                    >
+                      FORGOT PASSWORD?
+                    </button>
+                  )}
+                </>
+              )}
+              
+              {showForgotPassword && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setError('');
+                    setSuccess('');
+                    setPassword('');
+                  }}
+                  className="text-gray-400 hover:text-green-400 text-xs block w-full"
+                >
+                  BACK TO LOGIN
+                </button>
+              )}
               
               {onCancel && (
                 <button

@@ -24,3 +24,21 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Custom scrollbar for command suggestions */
+.command-suggestions::-webkit-scrollbar {
+  width: 8px;
+}
+
+.command-suggestions::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.command-suggestions::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+.command-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}

@@ -59,3 +59,42 @@ export interface ChannelCategory {
   created_at: string;
   channels?: Channel[];
 }
+
+export interface ChannelRole {
+  id: string;
+  channel_id: string;
+  name: string;
+  color: string;
+  permissions: {
+    can_kick?: boolean;
+    can_ban?: boolean;
+    can_manage_roles?: boolean;
+    can_manage_channel?: boolean;
+    can_delete_messages?: boolean;
+  };
+  sort_order: number;
+  created_by: string;
+  created_at: string;
+}
+
+export interface ChannelMember {
+  id: string;
+  channel_id: string;
+  user_id: string;
+  username: string;
+  role: 'owner' | 'moderator' | 'admin' | 'member'; // Legacy field
+  role_id?: string;
+  joined_at: string;
+  last_seen: string;
+  channel_role?: ChannelRole;
+}
+
+export interface ChannelBan {
+  id: string;
+  channel_id: string;
+  user_id: string;
+  banned_by: string;
+  reason?: string;
+  banned_at: string;
+  expires_at?: string;
+}

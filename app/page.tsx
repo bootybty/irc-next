@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
+import { useEffect, useCallback, Suspense } from 'react';
 import AuthModal from '@/components/AuthModal';
 import CreateCategoryModal from '@/components/CreateCategoryModal';
 import CreateChannelModal from '@/components/CreateChannelModal';
@@ -69,24 +69,7 @@ function HomeContent() {
     });
   };
 
-  useEffect(() => {
-    channel.fetchCategoriesAndChannels();
-
-    return () => {
-      if (chat.channel) {
-        chat.channel.unsubscribe();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ui.isJoined && channel.currentChannel) {
-      handleChannelSwitch(channel.currentChannel);
-      ui.setIsJoined(true);
-    }
-  }, [ui.isJoined, channel.currentChannel]);
-
-  const handleChannelSwitch = async (channelId: string) => {
+  const handleChannelSwitch = useCallback(async (channelId: string) => {
     chat.clearMessages();
     const result = await channel.switchChannel(channelId);
     
@@ -94,7 +77,28 @@ function HomeContent() {
       await chat.loadChannelMessages(channelId);
       await chat.joinChannel(channelId);
     }
-  };
+  }, [chat, channel]);
+
+  useEffect(() => {
+    channel.fetchCategoriesAndChannels();
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (chat.channel) {
+        chat.channel.unsubscribe();
+      }
+    };
+  }, [chat.channel]);
+
+  useEffect(() => {
+    if (!ui.isJoined && channel.currentChannel) {
+      handleChannelSwitch(channel.currentChannel);
+      ui.setIsJoined(true);
+    }
+  }, [ui.isJoined, channel.currentChannel, handleChannelSwitch, ui]);
 
   const sendMessage = async () => {
     if (chat.channel && ui.inputMessage.trim() && auth.authUser) {
@@ -127,6 +131,13 @@ function HomeContent() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle Enter for sending messages
+    if (e.key === 'Enter' && !e.shiftKey && !commands.showCommandSuggestions) {
+      e.preventDefault();
+      sendMessage();
+      return;
+    }
+
     if (!commands.showCommandSuggestions) return;
 
     switch (e.key) {
@@ -609,12 +620,6 @@ function HomeContent() {
                   value={ui.inputMessage}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && !commands.showCommandSuggestions) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
                   className="flex-1 bg-transparent text-green-400 outline-none ml-2 placeholder-gray-600 resize-none overflow-y-auto flex items-center"
                   placeholder={channel.userRole === 'owner' || channel.userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
                   rows={1}
@@ -651,7 +656,6 @@ function HomeContent() {
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowUsers(false)}>
             <div className="w-48 h-full bg-black border-l border-green-400 p-4 ml-auto" onClick={(e) => e.stopPropagation()}>
               {(() => {
-                const currentChannelName = channel.getCurrentChannelName();
                 const displayUsers = users.displayUsers;
                 const userCount = displayUsers.length;
                 
@@ -688,7 +692,6 @@ function HomeContent() {
           scrollbarColor: '#1f2937 #000000'
         }}>
           {(() => {
-            const currentChannelName = channel.getCurrentChannelName();
             const displayUsers = users.displayUsers;
             const userCount = displayUsers.length;
             

@@ -3,6 +3,9 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { ChannelCategory, ChannelMember, ChannelRole } from '@/lib/supabase';
 
+// Define universal channels outside component to prevent re-creation
+const UNIVERSAL_CHANNELS = ['global', 'general', 'random', 'tech', 'gaming', 'music', 'news', 'help', 'projects', 'feedback'];
+
 export const useChannel = (userId: string, username: string, authUser: any) => {
   const searchParams = useSearchParams();
   const [currentChannel, setCurrentChannel] = useState('');
@@ -18,7 +21,6 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
   const [joiningChannelName, setJoiningChannelName] = useState<string>('');
   const [unreadMentions, setUnreadMentions] = useState<Record<string, number>>({});
 
-  const universalChannels = ['global', 'general', 'random', 'tech', 'gaming', 'music', 'news', 'help', 'projects', 'feedback'];
 
   const fetchUnreadMentions = useCallback(async () => {
     if (!userId) return;
@@ -61,12 +63,12 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
         .from('channels')
         .select('id, name, topic, category_id')
         .is('category_id', null)
-        .not('name', 'in', `(${universalChannels.map(ch => `"${ch}"`).join(',')})`),
+        .not('name', 'in', `(${UNIVERSAL_CHANNELS.map(ch => `"${ch}"`).join(',')})`),
       
       supabase
         .from('channels')
         .select('id, name, topic, category_id')
-        .in('name', universalChannels)
+        .in('name', UNIVERSAL_CHANNELS)
     ]);
 
     const categoriesData = categoriesResult.data;
@@ -74,7 +76,12 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
     const fetchedUniversalChannels = universalChannelsResult.data || [];
 
     if (categoriesResult.error) {
-      console.error('Error fetching categories:', categoriesResult.error);
+      console.error('Error fetching categories:', {
+        error: categoriesResult.error,
+        message: categoriesResult.error?.message || 'Unknown error',
+        details: categoriesResult.error?.details || 'No details',
+        code: categoriesResult.error?.code || 'No code'
+      });
       return;
     }
 
@@ -82,7 +89,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
     
     const globalChannel = fetchedUniversalChannels.find(ch => ch.name === 'global');
     const otherUniversalChannels = fetchedUniversalChannels
-      .filter(ch => universalChannels.includes(ch.name) && ch.name !== 'global')
+      .filter(ch => UNIVERSAL_CHANNELS.includes(ch.name) && ch.name !== 'global')
       .sort((a, b) => a.name.localeCompare(b.name));
     
     const sortedUniversalChannels = [
@@ -146,7 +153,7 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
     }
     
     setExpandedCategories(new Set());
-  }, [fetchUnreadMentions, userId, currentChannel, searchParams, universalChannels]);
+  }, [fetchUnreadMentions, userId, currentChannel, searchParams]);
 
   const fetchChannelMembers = async (channelId: string) => {
     const { data: roles } = await supabase
@@ -281,7 +288,13 @@ export const useChannel = (userId: string, username: string, authUser: any) => {
       ]);
 
       if (channelResult.error) {
-        console.error('Error fetching channel:', channelResult.error);
+        console.error('Error fetching channel:', {
+          channelId,
+          error: channelResult.error,
+          message: channelResult.error?.message || 'Unknown error',
+          details: channelResult.error?.details || 'No details',
+          code: channelResult.error?.code || 'No code'
+        });
         setJoinStatus('failed');
         return;
       }

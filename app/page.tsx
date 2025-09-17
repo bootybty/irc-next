@@ -744,24 +744,35 @@ function HomeContent() {
           )}
 
           {/* Input Line */}
-          <div className={`border-t ${currentTheme.border} p-2`}>
+          <div className={`border-t ${currentTheme.border} p-2 cursor-text`} onClick={() => {
+            const textarea = document.querySelector('textarea');
+            if (textarea) textarea.focus();
+          }}>
             {auth.authUser ? (
               <div className="flex items-center">
                 <span className={`${currentTheme.accent} hidden sm:inline`}>[#{channel.getCurrentChannelName().toUpperCase()}]&gt; </span>
                 <span className={`${currentTheme.accent} sm:hidden`}>&gt; </span>
                 <textarea 
                   value={ui.inputMessage}
-                  onChange={(e) => handleInputChange(e.target.value)}
+                  onChange={(e) => {
+                    handleInputChange(e.target.value);
+                    // Auto-resize textarea
+                    e.target.style.height = '1.5rem';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 72) + 'px'; // max 4.5rem = 72px
+                  }}
                   onKeyDown={handleKeyDown}
-                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-hidden`}
+                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-y-auto`}
                   placeholder={channel.userRole === 'owner' || channel.userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
                   rows={1}
                   style={{
-                    height: '1.5rem',
+                    minHeight: '1.5rem',
+                    maxHeight: '4.5rem',
                     lineHeight: '1.5rem',
                     paddingTop: '0',
                     paddingBottom: '0',
-                    verticalAlign: 'top'
+                    verticalAlign: 'top',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: currentTheme.scrollbar
                   }}
                 />
               </div>

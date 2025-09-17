@@ -32,6 +32,33 @@ export const useChat = (
     }
   }, [isAtBottom]);
 
+  // Wait for DOM to be ready and then scroll
+  const scrollToBottomWhenReady = useCallback((force = false) => {
+    const chatArea = document.querySelector('.chat-area');
+    if (!chatArea) return;
+
+    const initialHeight = chatArea.scrollHeight;
+    
+    const checkAndScroll = () => {
+      const currentHeight = chatArea.scrollHeight;
+      
+      // If height hasn't changed yet, DOM isn't ready - wait a bit more
+      if (currentHeight === initialHeight) {
+        requestAnimationFrame(checkAndScroll);
+        return;
+      }
+      
+      // DOM has updated, now we can scroll
+      if (force || isAtBottom) {
+        chatArea.scrollTop = chatArea.scrollHeight;
+        setHasNewMessages(false);
+      }
+    };
+    
+    // Start checking after one frame
+    requestAnimationFrame(checkAndScroll);
+  }, [isAtBottom]);
+
   const loadMoreMessages = useCallback(async (channelId: string) => {
     console.log('🎯 loadMoreMessages CALLED with channel:', channelId);
     
@@ -251,7 +278,7 @@ export const useChat = (
           setHasNewMessages(true);
         } else {
           // Auto-scroll if user is currently at bottom
-          setTimeout(() => scrollToBottom(), 50);
+          scrollToBottomWhenReady();
         }
       }
     });
@@ -353,7 +380,8 @@ export const useChat = (
 
       setMessages(prev => [...prev, message]);
       
-      setTimeout(() => scrollToBottom(true), 0);
+      // Wait for DOM to update and then scroll
+      scrollToBottomWhenReady(true);
 
       await channel.send({
         type: 'broadcast',
@@ -416,10 +444,10 @@ export const useChat = (
       // Auto-scroll to bottom on first load
       if (!loadedChannels.has(channelId)) {
         setLoadedChannels(prev => new Set([...prev, channelId]));
-        setTimeout(() => scrollToBottom(true), 100);
+        scrollToBottomWhenReady(true);
       }
     }
-  }, [loadedChannels, scrollToBottom]);
+  }, [loadedChannels, scrollToBottomWhenReady]);
 
   const clearMessages = () => {
     setMessages([]);
@@ -451,6 +479,7 @@ export const useChat = (
     loadMoreMessages,
     clearMessages,
     scrollToBottom,
+    scrollToBottomWhenReady,
     checkScrollPosition
   };
 };

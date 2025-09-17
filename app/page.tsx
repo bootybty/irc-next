@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useCallback, Suspense } from 'react';
+import { useEffect, useCallback, Suspense, useState } from 'react';
 import AuthModal from '@/components/AuthModal';
 import CreateCategoryModal from '@/components/CreateCategoryModal';
 import CreateChannelModal from '@/components/CreateChannelModal';
 import ThemeSelector from '@/components/ThemeSelector';
+import PrivacyCenter from '@/components/PrivacyCenter';
+import CookieConsent from '@/components/CookieConsent';
+import TrackingStatus from '@/components/TrackingStatus';
 import { useTheme, themes } from '@/components/ThemeProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useChannel } from '@/hooks/useChannel';
@@ -18,6 +21,8 @@ function HomeContent() {
   const currentTheme = themes[theme];
   const auth = useAuth();
   const ui = useUI();
+  const [showPrivacyCenter, setShowPrivacyCenter] = useState(false);
+  const [consentPreferences, setConsentPreferences] = useState({ necessary: true, analytics: false, performance: false });
   
   const channel = useChannel(auth.userId, auth.username, auth.authUser);
   
@@ -834,7 +839,16 @@ function HomeContent() {
 
       {/* Bottom Status */}
       <div className={`border-t ${currentTheme.border} p-2 flex justify-between items-center flex-shrink-0`}>
-        <ThemeSelector />
+        <div className="flex items-center gap-2">
+          <ThemeSelector />
+          <button
+            onClick={() => setShowPrivacyCenter(true)}
+            className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
+            title="Privatlivspolitik og Cookie Indstillinger"
+          >
+            [INFO]
+          </button>
+        </div>
         <div className="text-xs font-mono">
           {chat.connected ? 'CONNECTED' : 'DISCONNECTED'}
         </div>
@@ -884,6 +898,17 @@ function HomeContent() {
           </div>
         </div>
       )}
+
+      {/* Privacy Center */}
+      {showPrivacyCenter && (
+        <PrivacyCenter onClose={() => setShowPrivacyCenter(false)} />
+      )}
+
+      {/* Cookie Consent */}
+      <CookieConsent onConsentChange={setConsentPreferences} />
+
+      {/* Tracking Status */}
+      <TrackingStatus />
 
     </div>
   );

@@ -414,7 +414,7 @@ function HomeContent() {
                           className={`cursor-pointer mb-2 ${
                             channel.currentChannel === ch.id
                               ? currentTheme.highlight
-                              : `${currentTheme.cyan} ${currentTheme.button}`
+                              : `${currentTheme.text} ${currentTheme.button}`
                           }`}
                         >
                           <span className="flex items-center justify-between">
@@ -532,7 +532,7 @@ function HomeContent() {
                         className={`cursor-pointer mb-2 ${
                           channel.currentChannel === ch.id
                             ? currentTheme.highlight
-                            : `${currentTheme.cyan} ${currentTheme.button}`
+                            : `${currentTheme.text} ${currentTheme.button}`
                         }`}
                       >
                         <span className="flex items-center justify-between">

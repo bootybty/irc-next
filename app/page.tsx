@@ -392,7 +392,7 @@ function HomeContent() {
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowSidebar(false)}>
             <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} p-4 overflow-auto`} onClick={(e) => e.stopPropagation()} style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: '#18181b #000000'
+              scrollbarColor: currentTheme.scrollbar
             }}>
               <div className="flex justify-between items-center mb-4">
                 <div className={currentTheme.accent}>CHANNELS:</div>
@@ -515,7 +515,7 @@ function HomeContent() {
         {/* Desktop Channel List */}
         <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} p-4 flex-shrink-0 overflow-auto`} style={{
           scrollbarWidth: 'thin',
-          scrollbarColor: '#18181b #000000'
+          scrollbarColor: currentTheme.scrollbar
         }}>
           <div className="mb-4">
             <div className={currentTheme.accent}>CHANNELS:</div>
@@ -644,7 +644,7 @@ function HomeContent() {
           {/* Chat Area */}
           <div className="flex-1 p-2 sm:p-4 overflow-auto chat-area" style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: '#18181b #000000'
+            scrollbarColor: currentTheme.scrollbar
           }}>
             <div className="space-y-1">
               {channel.joinStatus && channel.joiningChannelName && (
@@ -686,7 +686,7 @@ function HomeContent() {
           {auth.authUser && commands.showCommandSuggestions && (
             <div className={`border-t ${currentTheme.border} ${currentTheme.background} max-h-48 overflow-y-auto command-suggestions`} style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: '#18181b #000000'
+              scrollbarColor: currentTheme.scrollbar
             }}>
               {commands.commandSuggestions.map((suggestion, index) => (
                 <div
@@ -759,7 +759,7 @@ function HomeContent() {
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowUsers(false)}>
             <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} p-4 ml-auto overflow-auto`} onClick={(e) => e.stopPropagation()} style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: '#18181b #000000'
+              scrollbarColor: currentTheme.scrollbar
             }}>
               {(() => {
                 const displayUsers = users.displayUsers;
@@ -795,7 +795,7 @@ function HomeContent() {
         {/* Desktop User List */}
         <div className={`hidden lg:block w-64 lg:w-72 border-l ${currentTheme.border} p-4 flex-shrink-0 overflow-auto user-list`} style={{
           scrollbarWidth: 'thin',
-          scrollbarColor: '#18181b #000000'
+          scrollbarColor: currentTheme.scrollbar
         }}>
           {(() => {
             const displayUsers = users.displayUsers;

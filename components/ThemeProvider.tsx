@@ -31,7 +31,8 @@ export const themes = {
     mentionOther: 'bg-gray-800 bg-opacity-50',
     roleDefault: 'text-green-400',
     roleOwner: 'text-red-400',
-    roleModerator: 'text-yellow-400'
+    roleModerator: 'text-yellow-400',
+    scrollbar: '#18181b #000000'
   },
   'dark-white': {
     name: 'Midnight',
@@ -52,7 +53,8 @@ export const themes = {
     mentionOther: 'bg-gray-600 bg-opacity-50',
     roleDefault: 'text-green-400',
     roleOwner: 'text-red-400',
-    roleModerator: 'text-yellow-400'
+    roleModerator: 'text-yellow-400',
+    scrollbar: '#18181b #000000'
   },
   light: {
     name: 'Light Mode',
@@ -73,7 +75,8 @@ export const themes = {
     mentionOther: 'bg-gray-400 bg-opacity-50',
     roleDefault: 'text-orange-600',
     roleOwner: 'text-red-600',
-    roleModerator: 'text-yellow-600'
+    roleModerator: 'text-yellow-600',
+    scrollbar: '#d1d5db #ffffff'
   }
 };
 

@@ -133,13 +133,26 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
               .single();
             
             if (globalChannel) {
+              // Get Member role for global channel
+              const { data: memberRole } = await supabase
+                .from('channel_roles')
+                .select('id')
+                .eq('channel_id', globalChannel.id)
+                .eq('name', 'Member')
+                .single();
+
               await supabase
                 .from('channel_members')
                 .insert({
                   channel_id: globalChannel.id,
                   user_id: data.user.id,
                   username: profile.username,
-                  role: 'member'
+                  role: 'member',
+                  role_id: memberRole?.id,
+                  is_subscribed: true,
+                  is_active: true,
+                  last_activity: new Date().toISOString(),
+                  last_seen: new Date().toISOString()
                 });
             }
             

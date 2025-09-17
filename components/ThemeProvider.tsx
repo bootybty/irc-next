@@ -37,7 +37,7 @@ export const themes = {
   'dark-white': {
     name: 'Midnight',
     background: 'bg-zinc-900',
-    text: 'text-white',
+    text: 'text-gray-200',
     border: 'border-gray-500',
     accent: 'text-gray-300',
     highlight: 'text-yellow-400',
@@ -45,7 +45,7 @@ export const themes = {
     success: 'text-green-400',
     muted: 'text-gray-400',
     button: 'hover:text-yellow-400',
-    input: 'bg-transparent text-white placeholder-gray-500',
+    input: 'bg-transparent text-gray-200 placeholder-gray-500',
     modal: 'bg-zinc-900 border-gray-500',
     cyan: 'text-orange-300',
     purple: 'text-purple-300',

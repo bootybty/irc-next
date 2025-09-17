@@ -76,7 +76,7 @@ export const themes = {
     roleDefault: 'text-orange-600',
     roleOwner: 'text-red-600',
     roleModerator: 'text-yellow-600',
-    scrollbar: '#d1d5db #ffffff'
+    scrollbar: '#d1d5db #d1d5db'
   }
 };
 

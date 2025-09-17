@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useTheme, themes } from '@/components/ThemeProvider';
-import type { ChannelCategory, ChannelMember, ChannelRole } from '@/lib/supabase';
-import type { AuthUser } from '@/types';
+import type { ChannelCategory, ChannelRole } from '@/lib/supabase';
+import type { AuthUser, ChannelMember } from '@/types';
 
 // Define universal channels outside component to prevent re-creation
 const UNIVERSAL_CHANNELS = ['global', 'general', 'random', 'tech', 'gaming', 'music', 'news', 'help', 'projects', 'feedback'];
@@ -395,6 +395,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   }, [lastRefresh, fetchCategoriesAndChannels]);
 
   const fetchChannelMembers = useCallback(async (channelId: string) => {
+    console.log('📥 Fetching channel members for:', channelId);
     const { data: roles } = await supabase
       .from('channel_roles')
       .select('*')
@@ -411,9 +412,11 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         *,
         channel_role:channel_roles(*)
       `)
-      .eq('channel_id', channelId);
+      .eq('channel_id', channelId)
+      .eq('is_subscribed', true);
 
     if (members) {
+      console.log('👥 Channel members fetched:', members.length, members.map(m => ({ username: m.username, is_active: m.is_active })));
       setChannelMembers(members);
 
       if (authUser && userId) {
@@ -438,41 +441,101 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     }
   }, [authUser, userId]);
 
+  const subscribeToChannel = useCallback(async (channelId: string) => {
+    if (!authUser || !userId) return { success: false, error: 'Not authenticated' };
+
+    try {
+      const { data: existingMember } = await supabase
+        .from('channel_members')
+        .select('id, is_subscribed')
+        .eq('channel_id', channelId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!existingMember) {
+        const { data: memberRole } = await supabase
+          .from('channel_roles')
+          .select('id')
+          .eq('channel_id', channelId)
+          .eq('name', 'Member')
+          .single();
+
+        const { error } = await supabase
+          .from('channel_members')
+          .insert({
+            channel_id: channelId,
+            user_id: userId,
+            username: username,
+            role: 'member',
+            role_id: memberRole?.id,
+            is_subscribed: true,
+            is_active: true,
+            last_activity: new Date().toISOString(),
+            last_seen: new Date().toISOString()
+          });
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('channel_members')
+          .update({ 
+            is_subscribed: true,
+            is_active: true,
+            last_activity: new Date().toISOString(),
+            last_seen: new Date().toISOString() 
+          })
+          .eq('channel_id', channelId)
+          .eq('user_id', userId);
+
+        if (error) throw error;
+      }
+
+      await fetchChannelMembers(channelId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error subscribing to channel:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, [authUser, userId, username, fetchChannelMembers]);
+
+  const unsubscribeFromChannel = useCallback(async (channelId: string) => {
+    if (!authUser || !userId) return { success: false, error: 'Not authenticated' };
+
+    try {
+      const { error } = await supabase
+        .from('channel_members')
+        .update({ 
+          is_subscribed: false,
+          is_active: false,
+          last_activity: new Date().toISOString()
+        })
+        .eq('channel_id', channelId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      await fetchChannelMembers(channelId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error unsubscribing from channel:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, [authUser, userId, fetchChannelMembers]);
+
   const joinChannelAsMember = useCallback(async (channelId: string) => {
     if (!authUser || !userId) return;
 
-    const { data: existingMember } = await supabase
-      .from('channel_members')
-      .select('id')
-      .eq('channel_id', channelId)
-      .eq('user_id', userId)
-      .single();
-
-    if (!existingMember) {
-      const { data: memberRole } = await supabase
-        .from('channel_roles')
-        .select('id')
-        .eq('channel_id', channelId)
-        .eq('name', 'Member')
-        .single();
-
-      await supabase
-        .from('channel_members')
-        .insert({
-          channel_id: channelId,
-          user_id: userId,
-          username: username,
-          role: 'member',
-          role_id: memberRole?.id
-        });
-    }
-
     await supabase
       .from('channel_members')
-      .update({ last_seen: new Date().toISOString() })
+      .update({ 
+        is_active: true,
+        last_activity: new Date().toISOString(),
+        last_seen: new Date().toISOString() 
+      })
       .eq('channel_id', channelId)
-      .eq('user_id', userId);
-  }, [authUser, userId, username]);
+      .eq('user_id', userId)
+      .eq('is_subscribed', true);
+  }, [authUser, userId]);
 
   const markMentionsAsRead = useCallback(async (channelId: string) => {
     if (!userId) return;
@@ -616,6 +679,24 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     }
   };
 
+  const isUserSubscribed = useCallback((channelId: string) => {
+    if (!userId) return false;
+    const member = channelMembers.find(m => m.user_id === userId && m.channel_id === channelId);
+    return member?.is_subscribed || false;
+  }, [userId, channelMembers]);
+
+  const debugActiveStatus = useCallback(async () => {
+    console.log('🔍 DEBUG: Current channel members status:');
+    const { data: members } = await supabase
+      .from('channel_members')
+      .select('username, is_active, is_subscribed, last_activity')
+      .eq('channel_id', currentChannel)
+      .eq('is_subscribed', true);
+    
+    console.table(members);
+    return members;
+  }, [currentChannel]);
+
   useEffect(() => {
     const urlChannelName = window.location.hash.slice(1) || '';
     // console.log('URL channel name from hash:', urlChannelName, 'Categories loaded:', categories.length);
@@ -733,6 +814,10 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     switchChannel,
     toggleCategory,
     getCurrentChannelName,
-    getRoleColor
+    getRoleColor,
+    subscribeToChannel,
+    unsubscribeFromChannel,
+    isUserSubscribed,
+    debugActiveStatus
   };
 };

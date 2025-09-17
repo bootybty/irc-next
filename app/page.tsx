@@ -787,6 +787,11 @@ function HomeContent() {
               memberCount={users.displayUsers.length}
               joinStatus={channel.joinStatus}
               joiningChannelName={channel.joiningChannelName}
+              isSubscribed={channel.isUserSubscribed(channel.currentChannel)}
+              onSubscribe={() => channel.subscribeToChannel(channel.currentChannel)}
+              onUnsubscribe={() => channel.unsubscribeFromChannel(channel.currentChannel)}
+              isAuthUser={!!auth.authUser}
+              channelId={channel.currentChannel}
             />
           </div>
           {/* Mobile Header - Simplified */}
@@ -977,11 +982,8 @@ function HomeContent() {
                   <>
                     <div className="space-y-1">
                       {displayUsers.map((user, index) => {
-                        const member = channel.channelMembers.find(m => m.user_id === user.id);
-                        const roleColor = member ? channel.getRoleColor(member) : currentTheme.text;
-                        
                         return (
-                          <div key={`mobile-user-${user.id}-${index}`} className={roleColor}>
+                          <div key={`mobile-user-${user.id}-${index}`} className={user.roleColor}>
                             {user.username.toUpperCase()}
                           </div>
                         );
@@ -1014,11 +1016,8 @@ function HomeContent() {
                 <>
                 <div className="space-y-1">
                   {displayUsers.map((user, index) => {
-                    const member = channel.channelMembers.find(m => m.user_id === user.id);
-                    const roleColor = member ? channel.getRoleColor(member) : currentTheme.text;
-                    
                     return (
-                      <div key={`desktop-user-${user.id}-${index}`} className={roleColor}>
+                      <div key={`desktop-user-${user.id}-${index}`} className={user.roleColor}>
                         {user.username.toUpperCase()}
                       </div>
                     );
@@ -1042,6 +1041,24 @@ function HomeContent() {
           >
             [INFO]
           </button>
+          {auth.authUser && (
+            <>
+              <button
+                onClick={() => channel.debugActiveStatus()}
+                className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
+                title="Debug Active Status"
+              >
+                [DEBUG-DB]
+              </button>
+              <button
+                onClick={() => chat.debugPresence()}
+                className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
+                title="Debug Presence"
+              >
+                [DEBUG-P]
+              </button>
+            </>
+          )}
         </div>
         <div className="text-xs font-mono">
           {chat.connected ? 'CONNECTED' : 'DISCONNECTED'}

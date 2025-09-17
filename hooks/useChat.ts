@@ -218,6 +218,23 @@ export const useChat = (
     }
   }, []);
 
+  const debugPresence = useCallback(() => {
+    if (!channel) {
+      console.log('❌ No channel available for presence debug');
+      return;
+    }
+    
+    console.log('🔍 DEBUG: Current presence state:');
+    const presenceState = channel.presenceState();
+    console.log('👥 Presence state:', presenceState);
+    
+    const allConnections = Object.values(presenceState).flat() as unknown as User[];
+    console.log('👥 All connections:', allConnections);
+    
+    console.log('👥 Current users state:', users);
+  }, [channel, users]);
+
+
   const detectAndStoreMentions = async (content: string, messageId: string) => {
     const mentionRegex = /@(\w+)/g;
     const mentions = [];
@@ -330,8 +347,10 @@ export const useChat = (
     });
 
     newChannel.on('presence', { event: 'sync' }, () => {
+      console.log('🔄 Presence sync event fired for channel:', channelId);
       const presenceState = newChannel.presenceState();
       const allConnections = Object.values(presenceState).flat() as unknown as User[];
+      console.log('👥 All connections:', allConnections.length, allConnections);
       
       const uniqueUsers = allConnections.reduce((unique: User[], user) => {
         const existingUser = unique.find(u => u.id === user.id);
@@ -348,15 +367,19 @@ export const useChat = (
           role: member?.role || 'member'
         };
       });
+      
+      console.log('👥 Setting users to:', usersWithRoles);
       setUsers(usersWithRoles);
     });
 
-    newChannel.on('presence', { event: 'join' }, () => {
-      // Handle user join if needed
+    newChannel.on('presence', { event: 'join' }, (payload) => {
+      console.log('✅ User JOIN event fired:', payload);
+      // Presence sync will handle updating the users list
     });
 
-    newChannel.on('presence', { event: 'leave' }, () => {
-      // Handle user leave if needed
+    newChannel.on('presence', { event: 'leave' }, (payload) => {
+      console.log('❌ User LEAVE event fired:', payload);
+      // Presence sync will handle updating the users list
     });
 
     newChannel.subscribe(async (status) => {
@@ -514,6 +537,7 @@ export const useChat = (
     clearMessages,
     scrollToBottom,
     scrollToBottomWhenReady,
-    checkScrollPosition
+    checkScrollPosition,
+    debugPresence
   };
 };

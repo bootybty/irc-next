@@ -27,6 +27,13 @@ export interface ChannelMember {
   role: string;
   joined_at?: string;
   permissions?: Record<string, boolean>;
+  is_subscribed?: boolean;
+  is_active?: boolean;
+  last_activity?: string;
+  channel_role?: {
+    name: string;
+    color: string;
+  };
 }
 
 export interface ChannelRole {

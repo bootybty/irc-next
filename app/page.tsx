@@ -131,6 +131,21 @@ function HomeContent() {
     if (chat.channel && ui.inputMessage.trim() && auth.authUser) {
       const trimmedInput = ui.inputMessage.trim();
 
+      // Check if user is subscribed to the channel (has membership)
+      const isSubscribed = channel.isUserSubscribed(channel.currentChannel);
+      if (!isSubscribed) {
+        const errorMsg = {
+          id: `membership_error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: 'You must join this channel to send messages. Click [JOIN CHANNEL] to become a member.',
+          timestamp: new Date(),
+          channel: channel.currentChannel
+        };
+        chat.setLocalMessages(prev => [...prev, errorMsg]);
+        ui.clearInput();
+        return;
+      }
+
       if (commands.pendingDeleteChannel && commands.pendingDeleteChannel.requestedBy === auth.userId && (trimmedInput.toLowerCase() === 'y' || trimmedInput.toLowerCase() === 'n')) {
         if (trimmedInput.toLowerCase() === 'y') {
           await commands.performChannelDeletion(commands.pendingDeleteChannel);
@@ -882,8 +897,15 @@ function HomeContent() {
                     e.target.style.height = Math.min(e.target.scrollHeight, 72) + 'px'; // max 4.5rem = 72px
                   }}
                   onKeyDown={handleKeyDown}
-                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-y-auto`}
-                  placeholder={channel.userRole === 'owner' || channel.userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
+                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-y-auto ${!channel.isUserSubscribed(channel.currentChannel) ? 'opacity-50' : ''}`}
+                  placeholder={
+                    !channel.isUserSubscribed(channel.currentChannel) 
+                      ? "JOIN CHANNEL TO SEND MESSAGES..." 
+                      : channel.userRole === 'owner' || channel.userRole === 'moderator' 
+                        ? "TYPE MESSAGE OR COMMAND (/help for commands)..." 
+                        : "TYPE MESSAGE..."
+                  }
+                  disabled={!channel.isUserSubscribed(channel.currentChannel)}
                   rows={1}
                   style={{
                     minHeight: '1.5rem',

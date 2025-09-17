@@ -217,15 +217,31 @@ function HomeContent() {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        commands.setSelectedSuggestion(prev => 
-          prev < commands.commandSuggestions.length - 1 ? prev + 1 : 0
-        );
+        commands.setSelectedSuggestion(prev => {
+          const newIndex = prev < commands.commandSuggestions.length - 1 ? prev + 1 : 0;
+          // Scroll to the selected suggestion
+          setTimeout(() => {
+            const selectedElement = document.getElementById(`suggestion-${newIndex}`);
+            if (selectedElement) {
+              selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }, 0);
+          return newIndex;
+        });
         break;
       case 'ArrowUp':
         e.preventDefault();
-        commands.setSelectedSuggestion(prev => 
-          prev > 0 ? prev - 1 : commands.commandSuggestions.length - 1
-        );
+        commands.setSelectedSuggestion(prev => {
+          const newIndex = prev > 0 ? prev - 1 : commands.commandSuggestions.length - 1;
+          // Scroll to the selected suggestion
+          setTimeout(() => {
+            const selectedElement = document.getElementById(`suggestion-${newIndex}`);
+            if (selectedElement) {
+              selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }, 0);
+          return newIndex;
+        });
         break;
       case 'Tab':
       case 'Enter':
@@ -822,40 +838,43 @@ function HomeContent() {
             
             {/* Command Autocomplete */}
             {auth.authUser && commands.showCommandSuggestions && (
-              <div className={`absolute bottom-full left-0 right-0 border ${currentTheme.border} ${currentTheme.background} max-h-48 overflow-y-auto command-suggestions z-50 shadow-lg`} style={{
-                scrollbarWidth: 'thin',
-                scrollbarColor: currentTheme.scrollbar
-              }}>
-                {commands.commandSuggestions.map((suggestion, index) => (
-                  <div
-                    key={suggestion.command}
-                    onClick={() => selectSuggestion(index)}
-                    className={`p-2 cursor-pointer border-b ${currentTheme.border} ${
-                      index === commands.selectedSuggestion 
-                        ? `${currentTheme.suggestionSelected} ${currentTheme.highlight}` 
-                        : `${currentTheme.text} ${currentTheme.suggestionHover}`
-                    }`}
-                  >
-                    <div className="font-mono text-xs">
-                      <span className={currentTheme.highlight}>
-                        {suggestion.command === '__help_only__' 
-                          ? 'Type reason...' 
-                          : suggestion.isUser || suggestion.isRole 
-                            ? suggestion.command 
-                            : `/${suggestion.command}`}
-                      </span>
-                      <div className={`${currentTheme.muted} text-xs mt-1`}>
-                        {suggestion.description}
-                        {suggestion.requiresRole && (
-                          <span className={`ml-2 ${currentTheme.error}`}>
-                            ({suggestion.requiresRole}+ only)
-                          </span>
-                        )}
+              <div className={`absolute bottom-full left-0 right-0 border ${currentTheme.border} ${currentTheme.background} max-h-48 z-50 shadow-lg flex flex-col command-suggestions`}>
+                <div className={`flex-1 overflow-y-auto`} style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: currentTheme.scrollbar
+                }}>
+                  {commands.commandSuggestions.map((suggestion, index) => (
+                    <div
+                      key={suggestion.command}
+                      id={`suggestion-${index}`}
+                      onClick={() => selectSuggestion(index)}
+                      className={`p-2 cursor-pointer border-b ${currentTheme.border} ${
+                        index === commands.selectedSuggestion 
+                          ? `${currentTheme.suggestionSelected} ${currentTheme.highlight}` 
+                          : `${currentTheme.text} ${currentTheme.suggestionHover}`
+                      }`}
+                    >
+                      <div className="font-mono text-xs">
+                        <span className={currentTheme.highlight}>
+                          {suggestion.command === '__help_only__' 
+                            ? 'Type reason...' 
+                            : suggestion.isUser || suggestion.isRole 
+                              ? suggestion.command 
+                              : `/${suggestion.command}`}
+                        </span>
+                        <div className={`${currentTheme.muted} text-xs mt-1`}>
+                          {suggestion.description}
+                          {suggestion.requiresRole && (
+                            <span className={`ml-2 ${currentTheme.error}`}>
+                              ({suggestion.requiresRole}+ only)
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div className={`p-1 text-xs ${currentTheme.muted} text-center border-b ${currentTheme.border}`}>
+                  ))}
+                </div>
+                <div className={`p-1 text-xs ${currentTheme.muted} text-center border-t ${currentTheme.border} bg-opacity-95 ${currentTheme.background}`}>
                   ↑↓ Navigate • TAB/ENTER Select • ESC Cancel
                 </div>
               </div>

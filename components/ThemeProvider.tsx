@@ -32,7 +32,7 @@ export const themes = {
     roleDefault: 'text-green-400',
     roleOwner: 'text-red-400',
     roleModerator: 'text-yellow-400',
-    scrollbar: '#18181b #000000'
+    scrollbar: '#000000 #000000'
   },
   'dark-white': {
     name: 'Midnight',
@@ -54,7 +54,7 @@ export const themes = {
     roleDefault: 'text-green-400',
     roleOwner: 'text-red-400',
     roleModerator: 'text-yellow-400',
-    scrollbar: '#18181b #000000'
+    scrollbar: '#18181b #18181b'
   },
   light: {
     name: 'Light Mode',

@@ -402,14 +402,16 @@ function HomeContent() {
         {/* Mobile Sidebar Overlay */}
         {ui.showSidebar && (
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowSidebar(false)}>
-            <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} p-4 overflow-auto`} onClick={(e) => e.stopPropagation()} style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: currentTheme.scrollbar
-            }}>
-              <div className="flex justify-between items-center mb-4">
+            <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} flex flex-col`} onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-4 border-b border-gray-600 flex-shrink-0">
                 <div className={`${currentTheme.accent} text-center flex-1`}>[ CHANNELS ]</div>
                 <button onClick={() => ui.setShowSidebar(false)} className={currentTheme.error}>[X]</button>
               </div>
+              <div className="flex-1 p-4 overflow-auto" style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: currentTheme.scrollbar,
+                maxHeight: 'calc(100vh - 120px)' // Account for header and footer
+              }}>
               <div className="ml-2">
                 {channel.categories.length === 0 ? (
                   <div className={`${currentTheme.muted} italic`}>No categories available</div>
@@ -520,6 +522,7 @@ function HomeContent() {
                   })
                 )}
               </div>
+              </div>
             </div>
           </div>
         )}
@@ -527,13 +530,14 @@ function HomeContent() {
         {/* Desktop Channel List */}
         <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} flex-shrink-0 flex flex-col`}>
           {/* Channel Header */}
-          <div className={`border-b ${currentTheme.border} p-2`}>
+          <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
             <div className={`${currentTheme.accent} text-center`}>[ CHANNELS ]</div>
           </div>
           {/* Channel List */}
           <div className="flex-1 p-4 overflow-auto" style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: currentTheme.scrollbar
+            scrollbarColor: currentTheme.scrollbar,
+            maxHeight: 'calc(100vh - 120px)' // Account for header and footer
           }}>
             <div className="ml-2">
               {channel.categories.length === 0 ? (
@@ -773,21 +777,23 @@ function HomeContent() {
         {/* Mobile Users Overlay */}
         {ui.showUsers && (
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowUsers(false)}>
-            <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} p-4 ml-auto overflow-auto`} onClick={(e) => e.stopPropagation()} style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: currentTheme.scrollbar
-            }}>
+            <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} ml-auto flex flex-col`} onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-4 border-b border-gray-600 flex-shrink-0">
+                <div className={currentTheme.accent}>
+                  USERS ({users.displayUsers.length}):
+                </div>
+                <button onClick={() => ui.setShowUsers(false)} className={currentTheme.error}>[X]</button>
+              </div>
+              <div className="flex-1 p-4 overflow-auto" style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: currentTheme.scrollbar,
+                maxHeight: 'calc(100vh - 120px)' // Account for header and footer
+              }}>
               {(() => {
                 const displayUsers = users.displayUsers;
                 
                 return (
                   <>
-                    <div className="flex justify-between items-center mb-4">
-                      <div className={currentTheme.accent}>
-                        USERS ({displayUsers.length}):
-                      </div>
-                      <button onClick={() => ui.setShowUsers(false)} className={currentTheme.error}>[X]</button>
-                    </div>
                     <div className="space-y-1">
                       {displayUsers.map((user, index) => {
                         const member = channel.channelMembers.find(m => m.user_id === user.id);
@@ -803,6 +809,7 @@ function HomeContent() {
                   </>
                 );
               })()}
+              </div>
             </div>
           </div>
         )}
@@ -810,13 +817,14 @@ function HomeContent() {
         {/* Desktop User List */}
         <div className={`hidden lg:block w-64 lg:w-72 border-l ${currentTheme.border} flex-shrink-0 flex flex-col`}>
           {/* User Header */}
-          <div className={`border-b ${currentTheme.border} p-2`}>
+          <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
             <div className={`${currentTheme.accent} text-center`}>[ USERS ({users.displayUsers.length}) ]</div>
           </div>
           {/* User List */}
           <div className="flex-1 p-4 overflow-auto user-list" style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: currentTheme.scrollbar
+            scrollbarColor: currentTheme.scrollbar,
+            maxHeight: 'calc(100vh - 120px)' // Account for header and footer
           }}>
             {(() => {
               const displayUsers = users.displayUsers;

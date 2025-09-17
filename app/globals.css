@@ -25,11 +25,10 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Hide all scrollbars but keep functionality */
+/* Restore tema-aware scrollbars with subtle visibility */
 .command-suggestions::-webkit-scrollbar,
 .chat-area::-webkit-scrollbar,
 .user-list::-webkit-scrollbar,
 textarea::-webkit-scrollbar {
-  width: 0px;
-  background: transparent;
+  width: 8px;
 }

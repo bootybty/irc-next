@@ -27,10 +27,15 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<number>(0);
+  const [isInitialLoading, setIsInitialLoading] = useState(false);
 
 
   const fetchUnreadMentions = useCallback(async () => {
     if (!userId) return;
+    
+    // Debounce multiple calls
+    const now = Date.now();
+    if (now - lastRefresh < 5000) return; // Don't fetch more than once per 5 seconds
     
     const { data: mentions } = await supabase
       .from('mentions')
@@ -45,10 +50,14 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       });
       setUnreadMentions(mentionCounts);
     }
-  }, [userId]);
+  }, [userId, lastRefresh]);
 
   const fetchUnreadCounts = useCallback(async () => {
     if (!userId) return;
+    
+    // Debounce multiple calls
+    const now = Date.now();
+    if (now - lastRefresh < 5000) return; // Don't fetch more than once per 5 seconds
     
     // Get all user's channel memberships with last_seen timestamps
     const { data: memberships } = await supabase
@@ -85,9 +94,161 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       
       setUnreadCounts(unreadCounts);
     }
-  }, [userId]);
+  }, [userId, lastRefresh]);
+
+  // Optimized function to batch multiple API calls for initial load
+  const fetchInitialData = useCallback(async () => {
+    if (!userId) return;
+    
+    // Prevent duplicate calls
+    if (isInitialLoading) {
+      return;
+    }
+    setIsInitialLoading(true);
+    
+    // Batch multiple queries together to reduce API calls
+    const [categoriesResult, uncategorizedResult, universalChannelsResult, membershipsResult, mentionsResult] = await Promise.all([
+      // Categories with channels
+      supabase
+        .from('channel_categories')
+        .select(`
+          id,
+          name,
+          emoji,
+          color,
+          sort_order,
+          channels (
+            id,
+            name,
+            topic,
+            category_id
+          )
+        `)
+        .order('name'),
+      
+      // Uncategorized channels
+      supabase
+        .from('channels')
+        .select('id, name, topic, category_id')
+        .is('category_id', null)
+        .not('name', 'in', `(${UNIVERSAL_CHANNELS.map(ch => `"${ch}"`).join(',')})`),
+      
+      // Universal channels
+      supabase
+        .from('channels')
+        .select('id, name, topic, category_id')
+        .in('name', UNIVERSAL_CHANNELS),
+      
+      // User's channel memberships for unread counts
+      supabase
+        .from('channel_members')
+        .select('channel_id, last_seen')
+        .eq('user_id', userId),
+      
+      // User's unread mentions
+      supabase
+        .from('mentions')
+        .select('channel_id')
+        .eq('mentioned_user_id', userId)
+        .eq('is_read', false)
+    ]);
+
+    // Process categories and channels
+    const categoriesData = categoriesResult.data || [];
+    const uncategorizedData = uncategorizedResult.data || [];
+    const universalData = universalChannelsResult.data || [];
+
+    const processedCategories = categoriesData.map(cat => ({
+      ...cat,
+      created_at: new Date().toISOString(),
+      channels: cat.channels?.map(ch => ({
+        ...ch,
+        created_at: new Date().toISOString()
+      }))
+    }));
+    
+    if (universalData.length > 0) {
+      processedCategories.unshift({
+        id: 'universal',
+        name: 'UNIVERSAL',
+        emoji: '🌍',
+        color: '#10b981',
+        sort_order: -1,
+        channels: universalData.map(ch => ({
+          ...ch,
+          created_at: new Date().toISOString()
+        })),
+        created_at: new Date().toISOString()
+      });
+    }
+    
+    if (uncategorizedData.length > 0) {
+      processedCategories.push({
+        id: 'no-category',
+        name: 'NO CATEGORY',
+        emoji: '📁',
+        color: '#6b7280',
+        sort_order: 1000,
+        channels: uncategorizedData.map(ch => ({
+          ...ch,
+          created_at: new Date().toISOString()
+        })),
+        created_at: new Date().toISOString()
+      });
+    }
+
+    setCategories(processedCategories);
+
+    // Process unread mentions
+    if (mentionsResult.data) {
+      const mentionCounts: Record<string, number> = {};
+      mentionsResult.data.forEach(mention => {
+        mentionCounts[mention.channel_id] = (mentionCounts[mention.channel_id] || 0) + 1;
+      });
+      setUnreadMentions(mentionCounts);
+    }
+
+    // Process unread counts
+    if (membershipsResult.data) {
+      const channelIds = membershipsResult.data.map(m => m.channel_id);
+      
+      if (channelIds.length > 0) {
+        const { data: messages } = await supabase
+          .from('messages')
+          .select('channel_id, created_at')
+          .in('channel_id', channelIds)
+          .neq('user_id', userId);
+
+        if (messages) {
+          const unreadCounts: Record<string, number> = {};
+          
+          membershipsResult.data.forEach(membership => {
+            const lastSeen = membership.last_seen || '1970-01-01';
+            const unreadMessages = messages.filter(msg => 
+              msg.channel_id === membership.channel_id && 
+              new Date(msg.created_at) > new Date(lastSeen)
+            );
+            
+            if (unreadMessages.length > 0) {
+              unreadCounts[membership.channel_id] = unreadMessages.length;
+            }
+          });
+          
+          setUnreadCounts(unreadCounts);
+        }
+      }
+    }
+
+    setLastRefresh(Date.now());
+    setIsInitialLoading(false);
+  }, [userId, isInitialLoading]);
 
   const fetchCategoriesAndChannels = useCallback(async () => {
+    // Prevent duplicate calls
+    if (isInitialLoading) {
+      return;
+    }
+    setIsInitialLoading(true);
     const [categoriesResult, uncategorizedResult, universalChannelsResult] = await Promise.all([
       supabase
         .from('channel_categories')
@@ -204,7 +365,8 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     }
     
     setExpandedCategories(new Set());
-  }, [fetchUnreadMentions, fetchUnreadCounts, userId, currentChannel, searchParams]);
+    setIsInitialLoading(false);
+  }, [fetchUnreadMentions, fetchUnreadCounts, userId, currentChannel, searchParams, isInitialLoading]);
 
   const refreshChannels = useCallback(async () => {
     const now = Date.now();
@@ -547,6 +709,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     unreadCounts,
     setUnreadCounts,
     fetchCategoriesAndChannels,
+    fetchInitialData,
     refreshChannels,
     isRefreshing,
     fetchChannelMembers,

@@ -97,10 +97,18 @@ function HomeContent() {
   }, [chat, channel]);
 
   useEffect(() => {
-    channel.fetchCategoriesAndChannels();
-    // Only run once on mount
+    if (!auth.loading) {
+      // Use optimized initial data fetch to reduce API calls
+      if (auth.userId) {
+        channel.fetchInitialData();
+      } else {
+        // Fallback for when user is not logged in - only fetch basic channels
+        channel.fetchCategoriesAndChannels();
+      }
+    }
+    // Only run when auth is ready
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [auth.loading]);
 
   useEffect(() => {
     return () => {

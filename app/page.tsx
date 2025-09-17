@@ -339,7 +339,7 @@ function HomeContent() {
           <div className="flex gap-2">
             {auth.authUser ? (
               <>
-                <span className="text-yellow-400">{auth.username.toUpperCase()}</span>
+                <span className={currentTheme.accent}>{auth.username.toUpperCase()}</span>
                 <button 
                   onClick={auth.handleLogout}
                   className="text-red-400 hover:text-red-300"

@@ -25,74 +25,11 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Custom scrollbar for command suggestions */
-.command-suggestions::-webkit-scrollbar {
-  width: 8px;
-}
-
-.command-suggestions::-webkit-scrollbar-track {
-  background: #1f2937;
-}
-
-.command-suggestions::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 4px;
-}
-
-.command-suggestions::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
-}
-
-/* Custom scrollbar for textarea */
+/* Hide all scrollbars but keep functionality */
+.command-suggestions::-webkit-scrollbar,
+.chat-area::-webkit-scrollbar,
+.user-list::-webkit-scrollbar,
 textarea::-webkit-scrollbar {
-  width: 8px;
-}
-
-textarea::-webkit-scrollbar-track {
-  background: #000000;
-}
-
-textarea::-webkit-scrollbar-thumb {
-  background: #1f2937;
-  border-radius: 4px;
-}
-
-textarea::-webkit-scrollbar-thumb:hover {
-  background: #374151;
-}
-
-/* Custom scrollbar for chat area */
-.chat-area::-webkit-scrollbar {
-  width: 8px;
-}
-
-.chat-area::-webkit-scrollbar-track {
-  background: #000000;
-}
-
-.chat-area::-webkit-scrollbar-thumb {
-  background: #1f2937;
-  border-radius: 4px;
-}
-
-.chat-area::-webkit-scrollbar-thumb:hover {
-  background: #374151;
-}
-
-/* Custom scrollbar for user list */
-.user-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.user-list::-webkit-scrollbar-track {
-  background: #000000;
-}
-
-.user-list::-webkit-scrollbar-thumb {
-  background: #1f2937;
-  border-radius: 4px;
-}
-
-.user-list::-webkit-scrollbar-thumb:hover {
-  background: #374151;
+  width: 0px;
+  background: transparent;
 }

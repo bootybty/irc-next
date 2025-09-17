@@ -174,7 +174,11 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         emoji: '🌍',
         color: '#10b981',
         sort_order: -1,
-        channels: universalData.sort((a, b) => a.name.localeCompare(b.name)).map(ch => ({
+        channels: universalData.sort((a, b) => {
+          if (a.name === 'global') return -1;
+          if (b.name === 'global') return 1;
+          return a.name.localeCompare(b.name);
+        }).map(ch => ({
           ...ch,
           created_at: new Date().toISOString()
         })),
@@ -351,16 +355,16 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     // Only set default channel if no URL hash and no current channel
     const urlChannelName = window.location.hash.slice(1) || '';
     if (!currentChannel && categories.length > 0 && !Array.from(searchParams.keys())[0] && !urlChannelName) {
-      let firstChannel = null;
+      let globalChannel = null;
       for (const category of categories) {
         if (category.channels && category.channels.length > 0) {
-          firstChannel = category.channels[0];
-          break;
+          globalChannel = category.channels.find(ch => ch.name === 'global');
+          if (globalChannel) break;
         }
       }
       
-      if (firstChannel) {
-        setCurrentChannel(firstChannel.id);
+      if (globalChannel) {
+        switchChannel(globalChannel.id);
       }
     }
     
@@ -590,7 +594,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   };
 
   const getCurrentChannelName = () => {
-    if (!currentChannel) return 'no-channel';
+    if (!currentChannel) return 'global';
     
     for (const category of categories) {
       const channel = category.channels?.find(c => c.id === currentChannel);
@@ -632,8 +636,21 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         // console.log('Switching to channel:', foundChannelId);
         setCurrentChannel(foundChannelId);
       }
+    } else if (!urlChannelName && categories.length > 0 && !currentChannel) {
+      // No URL hash and no current channel - set default to global
+      let globalChannel = null;
+      for (const category of categories) {
+        if (category.channels && category.channels.length > 0) {
+          globalChannel = category.channels.find(ch => ch.name === 'global');
+          if (globalChannel) break;
+        }
+      }
+      
+      if (globalChannel) {
+        switchChannel(globalChannel.id);
+      }
     }
-  }, [categories]);
+  }, [categories, currentChannel, switchChannel]);
 
   useEffect(() => {
     const handleHashChange = () => {

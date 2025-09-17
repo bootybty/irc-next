@@ -102,7 +102,7 @@ export default function CreateChannelModal({
             {
               channel_id: channelId,
               name: 'Owner',
-              color: 'text-red-400',
+              color: 'text-red-500',
               permissions: {
                 can_kick: true,
                 can_ban: true,
@@ -120,6 +120,35 @@ export default function CreateChannelModal({
         ownerRoleId = newOwnerRole![0].id;
       }
 
+      // Check if Moderator role already exists, if not create it
+      const { data: existingModeratorRole } = await supabase
+        .from('channel_roles')
+        .select('id')
+        .eq('channel_id', channelId)
+        .eq('name', 'Moderator')
+        .single();
+
+      if (!existingModeratorRole) {
+        const { error: moderatorRoleError } = await supabase
+          .from('channel_roles')
+          .insert([
+            {
+              channel_id: channelId,
+              name: 'Moderator',
+              color: 'text-amber-500',
+              permissions: {
+                can_kick: true,
+                can_ban: true,
+                can_delete_messages: true
+              },
+              sort_order: 50,
+              created_by: user.id,
+            },
+          ]);
+
+        if (moderatorRoleError) throw moderatorRoleError;
+      }
+
       // Check if Member role already exists, if not create it  
       const { data: existingMemberRole } = await supabase
         .from('channel_roles')
@@ -135,7 +164,7 @@ export default function CreateChannelModal({
             {
               channel_id: channelId,
               name: 'Member',
-              color: 'text-green-400',
+              color: 'text-slate-500',
               permissions: {},
               sort_order: 100,
               created_by: user.id,

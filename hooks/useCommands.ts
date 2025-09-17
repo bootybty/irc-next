@@ -10,6 +10,7 @@ interface CommandSuggestion {
   requiresPermission?: string;
   isUser?: boolean;
   isRole?: boolean;
+  isColor?: boolean;
 }
 
 interface PendingDelete {
@@ -528,7 +529,7 @@ export const useCommands = (
         const errorMsg = {
           id: `error_${Date.now()}`,
           username: 'SYSTEM',
-          content: 'Usage: /createrole <name> [color] - Example: /createrole VIP purple',
+          content: 'Usage: /createrole <name> [color] - Available colors: purple, teal, green, pink, indigo, orange, blue',
           timestamp: new Date(),
           channel: currentChannel
         };
@@ -536,23 +537,96 @@ export const useCommands = (
         return true;
       }
 
-      // Color mapping
+      // Color mapping - Only custom role colors (excluding reserved: red, amber, slate)
       const colorMap: { [key: string]: string } = {
-        red: 'text-red-400',
-        orange: 'text-orange-400',
-        yellow: 'text-yellow-400',
-        green: 'text-green-400',
-        blue: 'text-blue-400',
-        purple: 'text-purple-400',
-        pink: 'text-pink-400',
-        cyan: 'text-cyan-400',
-        gray: 'text-gray-400',
-        emerald: 'text-emerald-400',
-        indigo: 'text-indigo-400',
-        teal: 'text-teal-400'
+        purple: 'text-purple-500',     // VIP
+        teal: 'text-teal-500',         // Helper
+        green: 'text-emerald-500',     // Expert
+        pink: 'text-pink-500',         // Supporter
+        indigo: 'text-indigo-500',     // Veteran
+        orange: 'text-orange-500',     // Contributor
+        blue: 'text-blue-500'          // Trusted
       };
 
-      const finalColor = colorMap[roleColor.toLowerCase()] || 'text-purple-400';
+      // Check if color is valid
+      if (!colorMap[roleColor.toLowerCase()]) {
+        // Get available colors (not used in this channel)
+        const usedColors = new Set([
+          'text-red-500',      // Owner (system role)
+          'text-amber-500',    // Moderator (system role)  
+          'text-slate-500',    // Member (system role)
+          ...channelRoles.map(role => role.color) // Custom roles
+        ]);
+        
+        const allColors = ['purple', 'teal', 'green', 'pink', 'indigo', 'orange', 'blue'];
+        const availableColors = allColors.filter(color => {
+          const colorValue = colorMap[color];
+          return colorValue && !usedColors.has(colorValue);
+        });
+
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Invalid color '${roleColor}'. Available colors: ${availableColors.length > 0 ? availableColors.join(', ') : 'none (all colors are used)'}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
+
+      const finalColor = colorMap[roleColor.toLowerCase()];
+
+      // Check if role name is reserved (system roles)
+      const reservedRoles = ['owner', 'moderator', 'member'];
+      if (reservedRoles.includes(roleName.toLowerCase())) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Role name '${roleName}' is reserved for system roles. Please choose a different name.`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
+
+      // Check if role name already exists in this channel (custom roles)
+      const roleExists = channelRoles.some(role => 
+        role.name.toLowerCase() === roleName.toLowerCase()
+      );
+      
+      if (roleExists) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Role name '${roleName}' already exists in this channel. Please choose a different name.`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
+
+      // Check if color is already used in this channel
+      const usedColors = new Set([
+        'text-red-500',      // Owner (system role)
+        'text-amber-500',    // Moderator (system role)  
+        'text-slate-500',    // Member (system role)
+        ...channelRoles.map(role => role.color) // Custom roles
+      ]);
+
+      if (usedColors.has(finalColor)) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Color '${roleColor}' is already used by another role in this channel. Please choose a different color.`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
 
       try {
         const { error: rolesError } = await supabase
@@ -564,15 +638,26 @@ export const useCommands = (
           });
 
         if (rolesError) {
+          let errorMessage = `Failed to create role: ${rolesError.message}`;
+          
+          // Handle specific error cases with user-friendly messages
+          if (rolesError.message?.includes('duplicate key value violates unique constraint') && 
+              rolesError.message?.includes('channel_roles_channel_id_name_key')) {
+            errorMessage = `Role name '${roleName}' already exists in this channel. Please choose a different name.`;
+          }
+          
           const errorMsg = {
             id: `error_${Date.now()}`,
             username: 'SYSTEM',
-            content: `Failed to create role: ${rolesError.message}`,
+            content: errorMessage,
             timestamp: new Date(),
             channel: currentChannel
           };
           setMessages(prev => [...prev, errorMsg]);
         } else {
+          // Refresh channel roles to update state
+          fetchChannelMembers(currentChannel);
+          
           const successMsg = {
             id: `success_${Date.now()}`,
             username: 'SYSTEM',
@@ -813,24 +898,31 @@ export const useCommands = (
 
     if (command === 'createrole' && parts.length === 3) {
       const colorInput = parts[2].toLowerCase();
-      const colorOptions = [
-        { command: 'red', description: '🔴 Red color for the role' },
-        { command: 'orange', description: '🟠 Orange color for the role' },
-        { command: 'yellow', description: '🟡 Yellow color for the role' },
-        { command: 'green', description: '🟢 Green color for the role' },
-        { command: 'blue', description: '🔵 Blue color for the role' },
-        { command: 'purple', description: '🟣 Purple color for the role' },
-        { command: 'pink', description: '🩷 Pink color for the role' },
-        { command: 'cyan', description: '🔷 Cyan color for the role' },
-        { command: 'gray', description: '⚪ Gray color for the role' },
-        { command: 'emerald', description: '💚 Emerald color for the role' },
-        { command: 'indigo', description: '🟦 Indigo color for the role' },
-        { command: 'teal', description: '🔸 Teal color for the role' }
+      
+      // Get all colors already used in this channel (including system roles)
+      const usedColors = new Set([
+        'text-red-500',      // Owner (system role)
+        'text-amber-500',    // Moderator (system role)  
+        'text-slate-500',    // Member (system role)
+        ...channelRoles.map(role => role.color) // Custom roles
+      ]);
+      
+      const allColorOptions = [
+        { command: 'purple', color: 'text-purple-500', description: 'Purple color for the role', isColor: true },
+        { command: 'teal', color: 'text-teal-500', description: 'Teal color for the role', isColor: true },
+        { command: 'green', color: 'text-emerald-500', description: 'Green color for the role', isColor: true },
+        { command: 'pink', color: 'text-pink-500', description: 'Pink color for the role', isColor: true },
+        { command: 'indigo', color: 'text-indigo-500', description: 'Indigo color for the role', isColor: true },
+        { command: 'orange', color: 'text-orange-500', description: 'Orange color for the role', isColor: true },
+        { command: 'blue', color: 'text-blue-500', description: 'Blue color for the role', isColor: true }
       ];
 
-      const filteredColors = colorOptions.filter(color => 
-        color.command.toLowerCase().startsWith(colorInput)
+      // Filter out colors that are already used and match input
+      const availableColors = allColorOptions.filter(color => 
+        !usedColors.has(color.color) && color.command.toLowerCase().startsWith(colorInput)
       );
+
+      const filteredColors = availableColors;
 
       setCommandSuggestions(filteredColors);
       setShowCommandSuggestions(filteredColors.length > 0);

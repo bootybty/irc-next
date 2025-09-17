@@ -938,7 +938,9 @@ function HomeContent() {
                             ? 'Type reason...' 
                             : suggestion.isUser || suggestion.isRole 
                               ? suggestion.command 
-                              : `/${suggestion.command}`}
+                              : suggestion.isColor
+                                ? suggestion.command
+                                : `/${suggestion.command}`}
                         </span>
                         <div className={`${currentTheme.muted} text-xs mt-1`}>
                           {suggestion.description}

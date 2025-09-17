@@ -55,16 +55,9 @@ export const useUsers = (
       return getRoleColor(member);
     }
     
-    if (channelMembers.length === 0) {
-      return currentTheme.muted;
-    }
-    
-    const userColors = theme === 'light' 
-      ? ['text-yellow-600', 'text-cyan-700', 'text-purple-700', 'text-red-600', 'text-orange-600', 'text-blue-600']
-      : ['text-yellow-400', 'text-cyan-400', 'text-purple-400', 'text-red-400', 'text-green-300', 'text-blue-400'];
-    const colorIndex = targetUsername.charCodeAt(0) % userColors.length;
-    return userColors[colorIndex];
-  }, [channelMembers, currentTheme.muted, getRoleColor, theme]);
+    // If user not found in members, default to member role color
+    return currentTheme.roleDefault;
+  }, [channelMembers, getRoleColor, currentTheme.roleDefault]);
 
   const displayUsers = useMemo(() => {
     // Get all subscribed members

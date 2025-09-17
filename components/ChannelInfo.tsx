@@ -32,10 +32,10 @@ export default function ChannelInfo({
   const currentTheme = themes[theme];
 
   return (
-    <div className={`border-b ${currentTheme.border} p-2 space-y-1`}>
+    <div className={`border-b ${currentTheme.border} p-2 space-y-1 relative`}>
       {/* Channel Name */}
-      <div className="flex items-center justify-between">
-        <div className="flex-1 text-center">
+      <div className="flex items-center justify-center relative">
+        <div className="text-center flex-shrink-0">
           <div className="truncate">
             === CONNECTED TO #{channelName.toUpperCase()} ===
           </div>
@@ -43,11 +43,11 @@ export default function ChannelInfo({
         
         {/* Subscribe/Unsubscribe Button */}
         {isAuthUser && channelId && (
-          <div className="ml-2">
+          <div className="absolute right-0 flex-shrink-0">
             {isSubscribed ? (
               <button
                 onClick={onUnsubscribe}
-                className={`px-2 py-1 text-xs border ${currentTheme.border} bg-red-600 hover:bg-red-700 text-white rounded`}
+                className="text-xs text-red-500 hover:text-red-700 cursor-pointer whitespace-nowrap"
                 title="Leave channel"
               >
                 [LEAVE]
@@ -55,10 +55,10 @@ export default function ChannelInfo({
             ) : (
               <button
                 onClick={onSubscribe}
-                className={`px-2 py-1 text-xs border ${currentTheme.border} bg-green-600 hover:bg-green-700 text-white rounded`}
+                className="text-xs text-green-600 hover:text-green-800 cursor-pointer whitespace-nowrap"
                 title="Join channel"
               >
-                [JOIN]
+                [JOIN CHANNEL]
               </button>
             )}
           </div>

@@ -513,12 +513,16 @@ function HomeContent() {
         )}
 
         {/* Desktop Channel List */}
-        <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} p-4 flex-shrink-0 overflow-auto`} style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: currentTheme.scrollbar
-        }}>
-          <div className="mb-4">
-            <div className={`${currentTheme.accent} text-center mb-3`}>[ CHANNELS ]</div>
+        <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} flex-shrink-0 flex flex-col`}>
+          {/* Channel Header */}
+          <div className={`border-b ${currentTheme.border} p-2`}>
+            <div className={`${currentTheme.accent} text-center`}>[ CHANNELS ]</div>
+          </div>
+          {/* Channel List */}
+          <div className="flex-1 p-4 overflow-auto" style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: currentTheme.scrollbar
+          }}>
             <div className="ml-2">
               {channel.categories.length === 0 ? (
                 <div className={`${currentTheme.muted} italic`}>No categories available</div>
@@ -793,19 +797,22 @@ function HomeContent() {
         )}
 
         {/* Desktop User List */}
-        <div className={`hidden lg:block w-64 lg:w-72 border-l ${currentTheme.border} p-4 flex-shrink-0 overflow-auto user-list`} style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: currentTheme.scrollbar
-        }}>
-          {(() => {
-            const displayUsers = users.displayUsers;
-            const userCount = displayUsers.length;
-            
-            return (
-              <>
-                <div className={`${currentTheme.accent} mb-4`}>
-                  USERS ({userCount}):
-                </div>
+        <div className={`hidden lg:block w-64 lg:w-72 border-l ${currentTheme.border} flex-shrink-0 flex flex-col`}>
+          {/* User Header */}
+          <div className={`border-b ${currentTheme.border} p-2`}>
+            <div className={`${currentTheme.accent} text-center`}>[ USERS ({users.displayUsers.length}) ]</div>
+          </div>
+          {/* User List */}
+          <div className="flex-1 p-4 overflow-auto user-list" style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: currentTheme.scrollbar
+          }}>
+            {(() => {
+              const displayUsers = users.displayUsers;
+              const userCount = displayUsers.length;
+              
+              return (
+                <>
                 <div className="space-y-1">
                   {displayUsers.map((user, index) => {
                     const member = channel.channelMembers.find(m => m.user_id === user.id);
@@ -821,6 +828,7 @@ function HomeContent() {
               </>
             );
           })()}
+          </div>
         </div>
       </div>
 

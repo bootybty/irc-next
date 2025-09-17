@@ -143,7 +143,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       fetchUnreadMentions();
     }
     
-    if (!currentChannel && categories.length > 0 && !Array.from(searchParams.keys())[0]) {
+    // Only set default channel if no URL hash and no current channel
+    const urlChannelName = window.location.hash.slice(1) || '';
+    if (!currentChannel && categories.length > 0 && !Array.from(searchParams.keys())[0] && !urlChannelName) {
       let firstChannel = null;
       for (const category of categories) {
         if (category.channels && category.channels.length > 0) {
@@ -388,12 +390,13 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         }
       }
       
-      if (foundChannelId && foundChannelId !== currentChannel) {
+      if (foundChannelId) {
+        // Always switch to URL hash channel, even if already current
         // console.log('Switching to channel:', foundChannelId);
-        switchChannel(foundChannelId, false);
+        setCurrentChannel(foundChannelId);
       }
     }
-  }, [categories, currentChannel]);
+  }, [categories]);
 
   useEffect(() => {
     const handleHashChange = () => {

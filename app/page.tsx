@@ -142,9 +142,13 @@ function HomeContent() {
         return;
       }
 
+      // Clear input immediately for snappy UX
+      ui.clearInput();
+      
       const success = await chat.sendMessage(trimmedInput, commands.handleCommand);
-      if (success) {
-        ui.clearInput();
+      if (!success) {
+        // If sending failed, restore the message
+        ui.setInputMessage(trimmedInput);
       }
     }
   };

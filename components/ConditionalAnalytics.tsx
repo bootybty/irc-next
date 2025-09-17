@@ -19,7 +19,7 @@ export default function ConditionalAnalytics() {
       if (savedConsent) {
         try {
           setConsent(JSON.parse(savedConsent));
-        } catch (error) {
+        } catch {
           // Handle invalid JSON, set default consent
           const defaultConsent = {
             necessary: true,

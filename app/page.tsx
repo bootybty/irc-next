@@ -22,7 +22,6 @@ function HomeContent() {
   const auth = useAuth();
   const ui = useUI();
   const [showPrivacyCenter, setShowPrivacyCenter] = useState(false);
-  const [consentPreferences, setConsentPreferences] = useState({ necessary: true, analytics: false, performance: false });
   
   const channel = useChannel(auth.userId, auth.username, auth.authUser);
   
@@ -52,7 +51,7 @@ function HomeContent() {
     chat.channel
   );
 
-  const users = useUsers(chat.users, channel.channelMembers, auth.username);
+  const users = useUsers(chat.users, channel.channelMembers);
 
   const formatMessageContent = (content: string) => {
     const mentionRegex = /@(\w+)/g;
@@ -87,7 +86,7 @@ function HomeContent() {
     chat.clearMessages();
     
     // Switch channel
-    const result = await channel.switchChannel(channelId);
+    await channel.switchChannel(channelId);
     
     // Always load messages regardless of switch result
     await chat.loadChannelMessages(channelId);
@@ -772,13 +771,12 @@ function HomeContent() {
             }}>
               {(() => {
                 const displayUsers = users.displayUsers;
-                const userCount = displayUsers.length;
                 
                 return (
                   <>
                     <div className="flex justify-between items-center mb-4">
                       <div className={currentTheme.accent}>
-                        USERS ({userCount}):
+                        USERS ({displayUsers.length}):
                       </div>
                       <button onClick={() => ui.setShowUsers(false)} className={currentTheme.error}>[X]</button>
                     </div>
@@ -814,7 +812,6 @@ function HomeContent() {
           }}>
             {(() => {
               const displayUsers = users.displayUsers;
-              const userCount = displayUsers.length;
               
               return (
                 <>
@@ -905,7 +902,7 @@ function HomeContent() {
       )}
 
       {/* Cookie Consent */}
-      <CookieConsent onConsentChange={setConsentPreferences} />
+      <CookieConsent onConsentChange={() => {}} />
 
       {/* Tracking Status */}
       <TrackingStatus />

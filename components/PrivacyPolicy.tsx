@@ -120,7 +120,7 @@ export default function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
               <h3 className={`${currentTheme.highlight} font-bold mb-2`}>10. CONTACT</h3>
               <div className={`${currentTheme.text} text-xs leading-relaxed`}>
                 For questions about data processing or to exercise your rights, 
-                contact us via the project's GitHub repository.
+                contact us via the project&apos;s GitHub repository.
               </div>
             </section>
           </div>

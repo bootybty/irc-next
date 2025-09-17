@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { AuthUser, ChannelMember, ChannelRole, Message, MessageSetter } from '@/types';
+import type { AuthUser, ChannelMember, ChannelRole, MessageSetter } from '@/types';
 
 interface CommandSuggestion {
   command: string;

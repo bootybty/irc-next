@@ -6,7 +6,7 @@ import { useTheme, themes } from './ThemeProvider';
 export default function TrackingStatus() {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
-  const [consent, setConsent] = useState<any>(null);
+  const [consent, setConsent] = useState<{necessary: boolean; analytics: boolean; performance: boolean} | null>(null);
   const [showStatus, setShowStatus] = useState(false);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ export default function TrackingStatus() {
       if (savedConsent) {
         try {
           setConsent(JSON.parse(savedConsent));
-        } catch (error) {
+        } catch {
           setConsent({ necessary: true, analytics: false, performance: false });
         }
       }

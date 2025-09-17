@@ -20,8 +20,7 @@ interface ChannelMember {
 
 export const useUsers = (
   users: User[],
-  channelMembers: ChannelMember[],
-  _username: string
+  channelMembers: ChannelMember[]
 ) => {
   const { theme } = useTheme();
   const currentTheme = themes[theme];

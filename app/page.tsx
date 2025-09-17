@@ -723,7 +723,7 @@ function HomeContent() {
           <div className={`border-t ${currentTheme.border} p-2`}>
             {auth.authUser ? (
               <div className="flex items-center">
-                <span className={`${currentTheme.accent} hidden sm:inline truncate max-w-32`}>[#{channel.getCurrentChannelName().toUpperCase()}]&gt; </span>
+                <span className={`${currentTheme.accent} hidden sm:inline`}>[#{channel.getCurrentChannelName().toUpperCase()}]&gt; </span>
                 <span className={`${currentTheme.accent} sm:hidden`}>&gt; </span>
                 <textarea 
                   value={ui.inputMessage}

@@ -276,7 +276,7 @@ export const useChat = (
       };
     }
 
-    const channelName = `user:${userId}:main`;
+    const channelName = `channel:${channelId}`;
     const newChannel = supabase.channel(channelName);
 
     newChannel.on('broadcast', { event: 'message' }, (payload) => {
@@ -330,8 +330,11 @@ export const useChat = (
     });
 
     newChannel.on('presence', { event: 'sync' }, () => {
+      console.log('🟢 Presence sync event triggered');
       const presenceState = newChannel.presenceState();
+      console.log('📊 Presence state:', presenceState);
       const allConnections = Object.values(presenceState).flat() as unknown as User[];
+      console.log('👥 All connections:', allConnections);
       
       const uniqueUsers = allConnections.reduce((unique: User[], user) => {
         const existingUser = unique.find(u => u.id === user.id);
@@ -340,6 +343,7 @@ export const useChat = (
         }
         return unique;
       }, []);
+      console.log('🔄 Unique users:', uniqueUsers);
       
       const usersWithRoles = uniqueUsers.map(user => {
         const member = channelMembers.find(m => m.user_id === user.id);
@@ -348,6 +352,7 @@ export const useChat = (
           role: member?.role || 'member'
         };
       });
+      console.log('👤 Users with roles:', usersWithRoles);
       setUsers(usersWithRoles);
     });
 
@@ -360,16 +365,21 @@ export const useChat = (
     });
 
     newChannel.subscribe(async (status) => {
+      console.log('📡 Channel subscription status:', status);
       if (status === 'SUBSCRIBED') {
         setConnected(true);
         
         if (authUser && userId && username) {
+          console.log('🔐 Tracking user presence:', { userId, username, channelId });
           await newChannel.track({
             id: userId,
             username: username,
             currentChannel: channelId,
             last_seen: new Date().toISOString()
           });
+          console.log('✅ User presence tracked');
+        } else {
+          console.log('❌ Missing auth data for tracking:', { authUser: !!authUser, userId, username });
         }
       }
     });

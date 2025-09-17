@@ -423,14 +423,14 @@ function HomeContent() {
               <>
                 <button 
                   onClick={ui.handleCreateCategory}
-                  className={`${currentTheme.accent} ${currentTheme.button}`}
+                  className={`${currentTheme.accent} ${currentTheme.button} select-none`}
                   title="Create Category"
                 >
                   [+CAT]
                 </button>
                 <button 
                   onClick={() => ui.handleCreateChannel()}
-                  className={`${currentTheme.accent} ${currentTheme.button}`}
+                  className={`${currentTheme.accent} ${currentTheme.button} select-none`}
                   title="Create Channel"
                 >
                   [+CH]
@@ -442,10 +442,10 @@ function HomeContent() {
           <div className="flex gap-2">
             {auth.authUser ? (
               <>
-                <span className={currentTheme.accent}>{auth.username.toUpperCase()}</span>
+                <span className={`${currentTheme.accent} select-none`}>{auth.username.toUpperCase()}</span>
                 <button 
                   onClick={auth.handleLogout}
-                  className="text-red-400 hover:text-red-300"
+                  className="text-red-400 hover:text-red-300 select-none"
                 >
                   [LOGOUT]
                 </button>
@@ -453,7 +453,7 @@ function HomeContent() {
             ) : (
               <button 
                 onClick={() => auth.setShowAuthModal(true)}
-                className={`${currentTheme.text} hover:text-green-300`}
+                className={`${currentTheme.text} hover:text-green-300 select-none`}
               >
                 [LOGIN]
               </button>
@@ -465,11 +465,11 @@ function HomeContent() {
         <div className="sm:hidden flex items-center justify-between">
           <button 
             onClick={() => ui.setShowSidebar(!ui.showSidebar)}
-            className="text-green-300 hover:text-yellow-400"
+            className="text-green-300 hover:text-yellow-400 select-none"
           >
             [CHANNELS]
           </button>
-          <div className={`text-center ${currentTheme.accent}`}>IRC CHAT</div>
+          <div className={`text-center ${currentTheme.accent} select-none`}>IRC CHAT</div>
           <div className="flex gap-2">
             {!auth.authUser && (
               <button 
@@ -481,7 +481,7 @@ function HomeContent() {
             )}
             <button 
               onClick={() => ui.setShowUsers(!ui.showUsers)}
-              className={`${currentTheme.accent} ${currentTheme.button}`}
+              className={`${currentTheme.accent} ${currentTheme.button} select-none`}
             >
               [USERS]
             </button>
@@ -496,16 +496,16 @@ function HomeContent() {
             <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} flex flex-col`} onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center p-4 border-b border-gray-600 flex-shrink-0">
                 <div className="w-10"></div>
-                <div className={`${currentTheme.accent} text-center`}>[ CHANNELS ]</div>
+                <div className={`${currentTheme.accent} text-center select-none`}>[ CHANNELS ]</div>
                 <div className="flex gap-2 w-10">
                   <button 
                     onClick={() => channel.refreshChannels()}
-                    className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
+                    className={`${currentTheme.accent} ${currentTheme.button} text-xs select-none`}
                     title="Refresh channels, mentions and unread counts"
                   >
                     {channel.isRefreshing ? '[✓]' : '[↻]'}
                   </button>
-                  <button onClick={() => ui.setShowSidebar(false)} className={currentTheme.error}>[X]</button>
+                  <button onClick={() => ui.setShowSidebar(false)} className={`${currentTheme.error} select-none`}>[X]</button>
                 </div>
               </div>
               <div className="flex-1 p-4 overflow-auto" style={{
@@ -526,7 +526,7 @@ function HomeContent() {
                             handleChannelSwitch(ch.id);
                             ui.setShowSidebar(false);
                           }}
-                          className={`cursor-pointer mb-2 ${
+                          className={`cursor-pointer mb-2 select-none ${
                             channel.currentChannel === ch.id
                               ? currentTheme.highlight
                               : `${currentTheme.text} ${currentTheme.button}`
@@ -562,7 +562,7 @@ function HomeContent() {
                             handleChannelSwitch(ch.id);
                             ui.setShowSidebar(false);
                           }}
-                          className={`cursor-pointer mb-1 ${
+                          className={`cursor-pointer mb-1 select-none ${
                             channel.currentChannel === ch.id
                               ? currentTheme.highlight
                               : `${currentTheme.text} ${currentTheme.button}`
@@ -611,7 +611,7 @@ function HomeContent() {
                                   handleChannelSwitch(ch.id);
                                   ui.setShowSidebar(false);
                                 }}
-                                className={`cursor-pointer ml-4 ${
+                                className={`cursor-pointer ml-4 select-none ${
                                   channel.currentChannel === ch.id
                                     ? currentTheme.highlight
                                     : `${currentTheme.text} ${currentTheme.button}`
@@ -655,7 +655,7 @@ function HomeContent() {
           <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
             <div className="flex justify-between items-center">
               <div className="w-6"></div>
-              <div className={`${currentTheme.accent} text-center`}>[ CHANNELS ]</div>
+              <div className={`${currentTheme.accent} text-center select-none`}>[ CHANNELS ]</div>
               <button 
                 onClick={() => channel.refreshChannels()}
                 className={`${currentTheme.accent} ${currentTheme.button} text-xs w-6`}
@@ -681,7 +681,7 @@ function HomeContent() {
                       <div 
                         key={ch.id}
                         onClick={() => handleChannelSwitch(ch.id)}
-                        className={`cursor-pointer mb-2 ${
+                        className={`cursor-pointer mb-2 select-none ${
                           channel.currentChannel === ch.id
                             ? currentTheme.highlight
                             : `${currentTheme.text} ${currentTheme.button}`
@@ -714,7 +714,7 @@ function HomeContent() {
                       <div 
                         key={ch.id}
                         onClick={() => handleChannelSwitch(ch.id)}
-                        className={`cursor-pointer mb-1 ${
+                        className={`cursor-pointer mb-1 select-none ${
                           channel.currentChannel === ch.id
                             ? currentTheme.highlight
                             : `${currentTheme.text} ${currentTheme.button}`
@@ -762,7 +762,7 @@ function HomeContent() {
                             <div 
                               key={ch.id}
                               onClick={() => handleChannelSwitch(ch.id)}
-                              className={`cursor-pointer ml-4 ${
+                              className={`cursor-pointer ml-4 select-none ${
                                 channel.currentChannel === ch.id
                                   ? currentTheme.highlight
                                   : `${currentTheme.text} ${currentTheme.button}`
@@ -948,7 +948,7 @@ function HomeContent() {
                       key={suggestion.command}
                       id={`suggestion-${index}`}
                       onClick={() => selectSuggestion(index)}
-                      className={`p-2 cursor-pointer border-b ${currentTheme.border} ${
+                      className={`p-2 cursor-pointer border-b select-none ${currentTheme.border} ${
                         index === commands.selectedSuggestion 
                           ? `${currentTheme.suggestionSelected} ${currentTheme.highlight}` 
                           : `${currentTheme.text} ${currentTheme.suggestionHover}`
@@ -989,10 +989,10 @@ function HomeContent() {
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowUsers(false)}>
             <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} ml-auto flex flex-col`} onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center p-4 border-b border-gray-600 flex-shrink-0">
-                <div className={currentTheme.accent}>
+                <div className={`${currentTheme.accent} select-none`}>
                   USERS ({users.displayUsers.length}):
                 </div>
-                <button onClick={() => ui.setShowUsers(false)} className={currentTheme.error}>[X]</button>
+                <button onClick={() => ui.setShowUsers(false)} className={`${currentTheme.error} select-none`}>[X]</button>
               </div>
               <div className="flex-1 p-4 overflow-auto" style={{
                 scrollbarWidth: 'thin',
@@ -1025,7 +1025,7 @@ function HomeContent() {
         <div className={`hidden lg:block w-64 lg:w-72 border-l ${currentTheme.border} flex-shrink-0 flex flex-col`}>
           {/* User Header */}
           <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
-            <div className={`${currentTheme.accent} text-center`}>[ USERS ({users.displayUsers.length}) ]</div>
+            <div className={`${currentTheme.accent} text-center select-none`}>[ USERS ({users.displayUsers.length}) ]</div>
           </div>
           {/* User List */}
           <div className="flex-1 p-4 overflow-auto user-list" style={{
@@ -1060,13 +1060,18 @@ function HomeContent() {
           <ThemeSelector />
           <button
             onClick={() => setShowPrivacyCenter(true)}
-            className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
+            className={`${currentTheme.accent} ${currentTheme.button} text-xs select-none`}
             title="Privatlivspolitik og Cookie Indstillinger"
           >
             [INFO]
           </button>
         </div>
-        <div className="text-xs font-mono">
+        <div 
+          className="text-xs font-mono select-none" 
+          title={chat.connected 
+            ? "CONNECTED - Receiving messages instantly via realtime connection" 
+            : "DISCONNECTED - Realtime unavailable, refresh page for new messages"}
+        >
           {chat.connected ? 'CONNECTED' : 'DISCONNECTED'}
         </div>
       </div>

@@ -12,7 +12,7 @@ export default function ThemeSelector() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`${currentTheme.accent} ${currentTheme.button} text-xs font-mono`}
+        className={`${currentTheme.accent} ${currentTheme.button} text-xs font-mono select-none`}
         title="Change Theme"
       >
         [THEME]
@@ -25,7 +25,7 @@ export default function ThemeSelector() {
             onClick={() => setIsOpen(false)}
           />
           <div className={`absolute left-0 bottom-8 ${currentTheme.modal} ${currentTheme.border} border p-2 z-20 min-w-32`}>
-            <div className={`${currentTheme.accent} text-xs mb-2 font-mono`}>
+            <div className={`${currentTheme.accent} text-xs mb-2 font-mono select-none`}>
               SELECT THEME:
             </div>
             {Object.entries(themes).map(([key, themeData]) => (
@@ -35,7 +35,7 @@ export default function ThemeSelector() {
                   setTheme(key as keyof typeof themes);
                   setIsOpen(false);
                 }}
-                className={`block w-full text-left px-2 py-1 text-xs font-mono ${
+                className={`block w-full text-left px-2 py-1 text-xs font-mono select-none ${
                   theme === key 
                     ? currentTheme.highlight 
                     : `${currentTheme.text} ${currentTheme.button}`

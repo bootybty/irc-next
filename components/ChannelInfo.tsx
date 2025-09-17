@@ -36,7 +36,7 @@ export default function ChannelInfo({
       {/* Channel Name */}
       <div className="flex items-center justify-center relative">
         <div className="text-center flex-shrink-0">
-          <div className="truncate">
+          <div className="truncate select-none">
             === CONNECTED TO #{channelName.toUpperCase()} ===
           </div>
         </div>
@@ -47,7 +47,7 @@ export default function ChannelInfo({
             {isSubscribed ? (
               <button
                 onClick={onUnsubscribe}
-                className="text-xs text-red-500 hover:text-red-700 cursor-pointer whitespace-nowrap"
+                className="text-xs text-red-500 hover:text-red-700 cursor-pointer whitespace-nowrap select-none"
                 title="Leave channel"
               >
                 [LEAVE]
@@ -55,7 +55,7 @@ export default function ChannelInfo({
             ) : (
               <button
                 onClick={onSubscribe}
-                className="text-xs text-green-600 hover:text-green-800 cursor-pointer whitespace-nowrap"
+                className="text-xs text-green-600 hover:text-green-800 cursor-pointer whitespace-nowrap select-none"
                 title="Join channel"
               >
                 [JOIN CHANNEL]

@@ -723,21 +723,15 @@ function HomeContent() {
                   value={ui.inputMessage}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-y-auto flex items-center`}
+                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-hidden`}
                   placeholder={channel.userRole === 'owner' || channel.userRole === 'moderator' ? "TYPE MESSAGE OR COMMAND (/help for commands)..." : "TYPE MESSAGE..."}
                   rows={1}
                   style={{
-                    minHeight: '1.25rem',
-                    maxHeight: '6rem',
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: '#1f2937 #000000',
-                    paddingTop: '0.125rem',
-                    paddingBottom: '0.125rem'
-                  }}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = 'auto';
-                    target.style.height = Math.min(target.scrollHeight, 96) + 'px';
+                    height: '1.5rem',
+                    lineHeight: '1.5rem',
+                    paddingTop: '0',
+                    paddingBottom: '0',
+                    verticalAlign: 'top'
                   }}
                 />
               </div>

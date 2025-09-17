@@ -778,7 +778,7 @@ function HomeContent() {
 
           {/* Command Autocomplete */}
           {auth.authUser && commands.showCommandSuggestions && (
-            <div className={`border-t ${currentTheme.border} ${currentTheme.background} max-h-48 overflow-y-auto command-suggestions`} style={{
+            <div className={`absolute bottom-full left-0 right-0 border ${currentTheme.border} ${currentTheme.background} max-h-48 overflow-y-auto command-suggestions z-50 shadow-lg`} style={{
               scrollbarWidth: 'thin',
               scrollbarColor: currentTheme.scrollbar
             }}>
@@ -818,7 +818,7 @@ function HomeContent() {
           )}
 
           {/* Input Line */}
-          <div className={`border-t ${currentTheme.border} p-2 cursor-text`} onClick={() => {
+          <div className={`relative border-t ${currentTheme.border} p-2 cursor-text`} onClick={() => {
             const textarea = document.querySelector('textarea');
             if (textarea) textarea.focus();
           }}>

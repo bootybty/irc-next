@@ -777,6 +777,34 @@ export const useCommands = (
   };
 
   const updateCommandSuggestions = (input: string) => {
+    // Handle @ mentions
+    const atIndex = input.lastIndexOf('@');
+    if (atIndex >= 0) {
+      const afterAt = input.substring(atIndex + 1);
+      
+      // Only show suggestions if we're currently typing after @
+      if (!afterAt.includes(' ')) {
+        const userInput = afterAt.toLowerCase();
+        const userSuggestions = channelMembers
+          .filter(member => member.username.toLowerCase().startsWith(userInput))
+          .map(member => {
+            const displayRole = member.role || 'member';
+            return {
+              command: member.username,
+              description: `@${member.username} (${displayRole})`,
+              isUser: true
+            };
+          });
+        
+        if (userSuggestions.length > 0) {
+          setCommandSuggestions(userSuggestions);
+          setShowCommandSuggestions(true);
+          setSelectedSuggestion(0);
+          return;
+        }
+      }
+    }
+    
     if (!input.startsWith('/')) {
       setShowCommandSuggestions(false);
       return;

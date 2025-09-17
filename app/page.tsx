@@ -165,6 +165,20 @@ function HomeContent() {
           return;
         }
         
+        // Handle @ mention suggestions
+        const atIndex = ui.inputMessage.lastIndexOf('@');
+        if (atIndex >= 0) {
+          const beforeAt = ui.inputMessage.substring(0, atIndex + 1);
+          const afterAt = ui.inputMessage.substring(atIndex + 1);
+          
+          // Only replace if we're currently typing after @
+          if (!afterAt.includes(' ')) {
+            ui.setInputMessage(beforeAt + selectedCommand.command + ' ');
+            commands.setShowCommandSuggestions(false);
+            return;
+          }
+        }
+        
         const parts = ui.inputMessage.split(' ');
         const currentCommand = parts[0]?.slice(1); // Remove the "/"
         
@@ -230,6 +244,23 @@ function HomeContent() {
             break;
           }
           
+          // Handle @ mention suggestions
+          const atIndex = ui.inputMessage.lastIndexOf('@');
+          if (atIndex >= 0) {
+            const beforeAt = ui.inputMessage.substring(0, atIndex + 1);
+            const afterAt = ui.inputMessage.substring(atIndex + 1);
+            
+            // Only replace if we're currently typing after @
+            if (!afterAt.includes(' ')) {
+              ui.setInputMessage(beforeAt + selectedCommand.command + ' ');
+              commands.setShowCommandSuggestions(false);
+              if (e.key === 'Tab') {
+                return;
+              }
+              break;
+            }
+          }
+          
           const parts = ui.inputMessage.split(' ');
           const currentCommand = parts[0]?.slice(1); // Remove the "/"
           
@@ -273,6 +304,20 @@ function HomeContent() {
     // Don't handle selection for help-only suggestions
     if (selectedCommand.command === '__help_only__') {
       return;
+    }
+    
+    // Handle @ mention suggestions
+    const atIndex = ui.inputMessage.lastIndexOf('@');
+    if (atIndex >= 0) {
+      const beforeAt = ui.inputMessage.substring(0, atIndex + 1);
+      const afterAt = ui.inputMessage.substring(atIndex + 1);
+      
+      // Only replace if we're currently typing after @
+      if (!afterAt.includes(' ')) {
+        ui.setInputMessage(beforeAt + selectedCommand.command + ' ');
+        commands.setShowCommandSuggestions(false);
+        return;
+      }
     }
     
     const parts = ui.inputMessage.split(' ');

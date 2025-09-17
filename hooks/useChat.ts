@@ -21,17 +21,16 @@ export const useChat = (
   const [hasNewMessages, setHasNewMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const [lastScrollCheck, setLastScrollCheck] = useState(0);
   const [loadedChannels, setLoadedChannels] = useState<Set<string>>(new Set());
 
   // Smart scroll behavior functions
-  const scrollToBottom = (force = false) => {
+  const scrollToBottom = useCallback((force = false) => {
     const chatArea = document.querySelector('.chat-area');
     if (chatArea && (force || isAtBottom)) {
       chatArea.scrollTop = chatArea.scrollHeight;
       setHasNewMessages(false);
     }
-  };
+  }, [isAtBottom]);
 
   const loadMoreMessages = useCallback(async (channelId: string) => {
     console.log('🎯 loadMoreMessages CALLED with channel:', channelId);
@@ -78,7 +77,7 @@ export const useChat = (
     let firstVisibleMessage = null;
     let firstVisibleOffset = 0;
     
-    if (messageElements) {
+    if (messageElements && chatArea) {
       for (const elem of messageElements) {
         const rect = elem.getBoundingClientRect();
         const chatRect = chatArea.getBoundingClientRect();
@@ -177,28 +176,11 @@ export const useChat = (
 
   const checkScrollPosition = useCallback(() => {
     const chatArea = document.querySelector('.chat-area');
-    if (!chatArea) {
-      console.log('⚠️ No chat area found');
-      return;
-    }
+    if (!chatArea) return;
 
     const scrollTop = chatArea.scrollTop;
     const clientHeight = chatArea.clientHeight;
     const scrollHeight = chatArea.scrollHeight;
-    
-    // Debug every scroll near top
-    if (scrollTop < 500) {
-      console.log('📍 Scroll position:', {
-        scrollTop,
-        threshold: 200,
-        isNearTop: scrollTop < 200,
-        hasMoreMessages,
-        isLoadingMore,
-        currentChannel,
-        messagesCount: messages.length,
-        timeSinceLastCheck: Date.now() - lastScrollCheck
-      });
-    }
     
     // Check if at bottom for auto-scroll new messages
     const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
@@ -206,41 +188,7 @@ export const useChat = (
     if (isAtBottom) {
       setHasNewMessages(false);
     }
-    
-    // Check if near top for lazy loading - SIMPLE
-    if (scrollTop < 200) {
-      console.log('🔝 Near top detected!', {
-        hasMoreMessages,
-        isLoadingMore,
-        currentChannel
-      });
-      
-      if (hasMoreMessages && !isLoadingMore) {
-        const now = Date.now();
-        const timeSinceLastCheck = now - lastScrollCheck;
-        
-        console.log('⏱️ Checking throttle:', {
-          timeSinceLastCheck,
-          threshold: 1000,
-          canLoad: timeSinceLastCheck > 1000
-        });
-        
-        // Simple throttle - 1 second between loads
-        if (timeSinceLastCheck > 1000) {
-          console.log('🚀🚀🚀 CALLING loadMoreMessages NOW!');
-          setLastScrollCheck(now);
-          loadMoreMessages(currentChannel);
-        } else {
-          console.log('⏳ Throttled - wait', 1000 - timeSinceLastCheck, 'ms');
-        }
-      } else {
-        console.log('❌ Cannot load:', {
-          hasMoreMessages,
-          isLoadingMore
-        });
-      }
-    }
-  }, [hasMoreMessages, isLoadingMore, currentChannel, loadMoreMessages, lastScrollCheck, messages.length]);
+  }, []);
 
   const detectAndStoreMentions = async (content: string, messageId: string) => {
     const mentionRegex = /@(\w+)/g;
@@ -471,7 +419,7 @@ export const useChat = (
         setTimeout(() => scrollToBottom(true), 100);
       }
     }
-  }, [loadedChannels]);
+  }, [loadedChannels, scrollToBottom]);
 
   const clearMessages = () => {
     setMessages([]);
@@ -481,7 +429,6 @@ export const useChat = (
     setHasNewMessages(false);
     setIsLoadingMore(false);
     setHasMoreMessages(true);
-    setLastScrollCheck(0);
     // Keep loadedChannels - don't reset so we don't auto-scroll when switching back
   };
 

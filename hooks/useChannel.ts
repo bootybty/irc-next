@@ -162,7 +162,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     setExpandedCategories(new Set());
   }, [fetchUnreadMentions, userId, currentChannel, searchParams]);
 
-  const fetchChannelMembers = async (channelId: string) => {
+  const fetchChannelMembers = useCallback(async (channelId: string) => {
     const { data: roles } = await supabase
       .from('channel_roles')
       .select('*')
@@ -204,9 +204,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         }
       }
     }
-  };
+  }, [authUser, userId]);
 
-  const joinChannelAsMember = async (channelId: string) => {
+  const joinChannelAsMember = useCallback(async (channelId: string) => {
     if (!authUser || !userId) return;
 
     const { data: existingMember } = await supabase
@@ -240,9 +240,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       .update({ last_seen: new Date().toISOString() })
       .eq('channel_id', channelId)
       .eq('user_id', userId);
-  };
+  }, [authUser, userId, username]);
 
-  const markMentionsAsRead = async (channelId: string) => {
+  const markMentionsAsRead = useCallback(async (channelId: string) => {
     if (!userId) return;
     
     await supabase
@@ -257,9 +257,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       delete updated[channelId];
       return updated;
     });
-  };
+  }, [userId]);
 
-  const switchChannel = async (channelId: string, updateUrl: boolean = true) => {
+  const switchChannel = useCallback(async (channelId: string, updateUrl: boolean = true) => {
     // console.log('switchChannel called with:', channelId, 'current:', currentChannel);
     
     let channelName = 'unknown-channel';
@@ -340,7 +340,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       setCurrentChannel(channelId);
       return { success: false, error };
     }
-  };
+  }, [categories, markMentionsAsRead, authUser, fetchChannelMembers, joinChannelAsMember]);
 
   const toggleCategory = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -414,7 +414,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [categories, currentChannel]);
+  }, [categories, currentChannel, switchChannel]);
 
   useEffect(() => {
     if (!userId) return;

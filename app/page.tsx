@@ -680,11 +680,18 @@ function HomeContent() {
             onScroll={chat.checkScrollPosition}
           >
             <div className="space-y-1">
-              {/* Loading Indicator at Top */}
-              {chat.isLoadingMore && (
-                <div className={`text-center py-3 ${currentTheme.highlight} animate-pulse`}>
-                  <div>*** LOADING OLDER MESSAGES... ***</div>
-                  <div className="text-xs mt-1">Scroll will adjust automatically</div>
+              {/* Load More Button */}
+              {chat.hasMoreMessages && (
+                <div className="text-center py-2">
+                  <button
+                    onClick={() => chat.loadMoreMessages(channel.currentChannel)}
+                    disabled={chat.isLoadingMore}
+                    className={`${currentTheme.accent} ${currentTheme.button} px-4 py-2 ${
+                      chat.isLoadingMore ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {chat.isLoadingMore ? 'LOADING...' : 'LOAD MORE MESSAGES'}
+                  </button>
                 </div>
               )}
               

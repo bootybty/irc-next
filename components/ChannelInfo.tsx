@@ -6,7 +6,7 @@ interface ChannelInfoProps {
   channelName: string;
   topic?: string;
   motd?: string;
-  memberCount: number;
+  memberCount?: number; // Optional since we don't use it
   joinStatus?: 'joining' | 'success' | 'failed' | null;
   joiningChannelName?: string;
 }
@@ -15,7 +15,6 @@ export default function ChannelInfo({
   channelName, 
   topic, 
   motd, 
-  memberCount, 
   joinStatus, 
   joiningChannelName 
 }: ChannelInfoProps) {

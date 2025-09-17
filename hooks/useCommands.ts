@@ -839,7 +839,8 @@ export const useCommands = (
             const displayRole = member.role || 'member';
             return {
               command: member.username,
-              description: `${member.username} (${displayRole})`
+              description: `${member.username} (${displayRole})`,
+              isUser: true
             };
           });
         
@@ -879,7 +880,8 @@ export const useCommands = (
           .filter(role => role.toLowerCase().startsWith(roleInput))
           .map(role => ({
             command: role,
-            description: `Role: ${role}`
+            description: `Role: ${role}`,
+            isRole: true
           }));
         
         if (roleSuggestions.length > 0) {

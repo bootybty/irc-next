@@ -720,7 +720,11 @@ function HomeContent() {
                 >
                   <div className="font-mono text-xs">
                     <span className={currentTheme.highlight}>
-                      {suggestion.command === '__help_only__' ? 'Type reason...' : `/${suggestion.command}`}
+                      {suggestion.command === '__help_only__' 
+                        ? 'Type reason...' 
+                        : suggestion.isUser || suggestion.isRole 
+                          ? suggestion.command 
+                          : `/${suggestion.command}`}
                     </span>
                     <div className={`${currentTheme.muted} text-xs mt-1`}>
                       {suggestion.description}

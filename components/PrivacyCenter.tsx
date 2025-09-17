@@ -13,7 +13,8 @@ interface PrivacyCenterProps {
 export default function PrivacyCenter({ onClose }: PrivacyCenterProps) {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
-  const [activeView, setActiveView] = useState<'menu' | 'privacy' | 'cookies' | 'preferences' | 'data'>('menu');
+  const [activeView, setActiveView] = useState<'menu' | 'privacy' | 'cookies' | 'preferences' | 'data' | 'delete-confirm'>('menu');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [cookiePreferences, setCookiePreferences] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('cookie-consent');
@@ -62,15 +63,9 @@ export default function PrivacyCenter({ onClose }: PrivacyCenterProps) {
 
   const handleAccountDeletion = async () => {
     const confirmText = 'DELETE';
-    const userInput = prompt(
-      `WARNING: This will permanently delete your account and ALL data including messages, profile, and channel memberships.\n\nThis action CANNOT be undone!\n\nType "${confirmText}" to confirm deletion:`
-    );
-
-    if (userInput !== confirmText) {
-      if (userInput !== null) {
-        alert('Account deletion cancelled - confirmation text did not match.');
-      }
-      return;
+    
+    if (deleteConfirmText !== confirmText) {
+      return; // This shouldn't happen due to disabled button, but safety check
     }
 
     try {
@@ -315,12 +310,24 @@ export default function PrivacyCenter({ onClose }: PrivacyCenterProps) {
 
                 <div className="p-3 border border-gray-600">
                   <div className={`${currentTheme.accent} font-bold mb-2`}>ACCOUNT DELETION</div>
-                  <div className={`${currentTheme.muted} text-xs mb-3`}>
-                    Permanently delete your account and ALL data including messages, profile, and memberships.
-                    This action CANNOT be undone!
+                  <div className={`${currentTheme.muted} text-xs mb-3 space-y-2`}>
+                    <div className={`${currentTheme.error} font-bold`}>⚠️ PERMANENT DELETION WARNING</div>
+                    <div>This will permanently delete:</div>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Your user profile and account</li>
+                      <li>ALL your chat messages from all channels</li>
+                      <li>Your channel memberships and roles</li>
+                      <li>Channels and roles you created</li>
+                      <li>All mentions to/from you</li>
+                      <li>Any bans you issued or received</li>
+                    </ul>
+                    <div className={`${currentTheme.highlight} font-bold`}>
+                      Your messages will be removed from chat history for ALL users!
+                    </div>
+                    <div className={`${currentTheme.error}`}>This action CANNOT be undone!</div>
                   </div>
                   <button
-                    onClick={handleAccountDeletion}
+                    onClick={() => setActiveView('delete-confirm')}
                     className={`${currentTheme.error} border ${currentTheme.border} px-4 py-2 ${currentTheme.button}`}
                   >
                     DELETE ACCOUNT PERMANENTLY
@@ -329,7 +336,80 @@ export default function PrivacyCenter({ onClose }: PrivacyCenterProps) {
               </div>
 
               <div className={`${currentTheme.muted} text-xs pt-4 border-t border-gray-600`}>
-                Note: Chat messages are stored on the server and require separate request for deletion.
+                Note: Account deletion includes all server data. Chat messages will be permanently removed from all channels.
+              </div>
+            </div>
+          )}
+
+          {activeView === 'delete-confirm' && (
+            <div className="space-y-6">
+              <button
+                onClick={() => setActiveView('data')}
+                className={`${currentTheme.accent} ${currentTheme.button} mb-4`}
+              >
+                ← BACK
+              </button>
+
+              <div className={`${currentTheme.error} text-lg font-bold text-center mb-6`}>
+                ⚠️ PERMANENT ACCOUNT DELETION ⚠️
+              </div>
+
+              <div className={`${currentTheme.text} text-sm space-y-4`}>
+                <div>This will PERMANENTLY delete:</div>
+                
+                <ul className="list-disc list-inside space-y-2 ml-4 text-xs">
+                  <li>Your user profile and account</li>
+                  <li className={`${currentTheme.error} font-bold`}>ALL your chat messages from all channels</li>
+                  <li>Your channel memberships and roles</li>
+                  <li>Channels and roles you created</li>
+                  <li>All mentions to/from you</li>
+                  <li>Any bans you issued or received</li>
+                </ul>
+
+                <div className={`${currentTheme.highlight} font-bold text-center p-3 border ${currentTheme.border}`}>
+                  Your messages will be removed from chat history for ALL users!
+                </div>
+
+                <div className={`${currentTheme.error} font-bold text-center`}>
+                  This action is COMPLETELY IRREVERSIBLE!
+                </div>
+
+                <div className="space-y-3">
+                  <div className={`${currentTheme.text}`}>
+                    Type <span className={`${currentTheme.highlight} font-bold`}>DELETE</span> to confirm:
+                  </div>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE here"
+                    className={`w-full p-3 ${currentTheme.input} border ${currentTheme.border} font-mono`}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setActiveView('data');
+                      setDeleteConfirmText('');
+                    }}
+                    className={`flex-1 ${currentTheme.accent} border ${currentTheme.border} px-4 py-3 ${currentTheme.button}`}
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={handleAccountDeletion}
+                    disabled={deleteConfirmText !== 'DELETE'}
+                    className={`flex-1 px-4 py-3 border ${currentTheme.border} ${
+                      deleteConfirmText === 'DELETE' 
+                        ? `${currentTheme.error} ${currentTheme.button}` 
+                        : `${currentTheme.muted} cursor-not-allowed`
+                    }`}
+                  >
+                    DELETE ACCOUNT PERMANENTLY
+                  </button>
+                </div>
               </div>
             </div>
           )}

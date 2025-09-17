@@ -472,8 +472,18 @@ function HomeContent() {
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowSidebar(false)}>
             <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} flex flex-col`} onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center p-4 border-b border-gray-600 flex-shrink-0">
-                <div className={`${currentTheme.accent} text-center flex-1`}>[ CHANNELS ]</div>
-                <button onClick={() => ui.setShowSidebar(false)} className={currentTheme.error}>[X]</button>
+                <div className="w-10"></div>
+                <div className={`${currentTheme.accent} text-center`}>[ CHANNELS ]</div>
+                <div className="flex gap-2 w-10">
+                  <button 
+                    onClick={() => channel.refreshChannels()}
+                    className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
+                    title="Refresh channels, mentions and unread counts"
+                  >
+                    {channel.isRefreshing ? '[✓]' : '[↻]'}
+                  </button>
+                  <button onClick={() => ui.setShowSidebar(false)} className={currentTheme.error}>[X]</button>
+                </div>
               </div>
               <div className="flex-1 p-4 overflow-auto" style={{
                 scrollbarWidth: 'thin',
@@ -504,11 +514,18 @@ function HomeContent() {
                               <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
                               <span className="truncate">#{ch.name.toUpperCase()}</span>
                             </span>
-                            {channel.unreadMentions[ch.id] && (
-                              <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
-                                @{channel.unreadMentions[ch.id]}
-                              </span>
-                            )}
+                            <span className="flex items-center gap-1">
+                              {channel.unreadCounts[ch.id] && (
+                                <span className="bg-blue-600 text-white text-xs px-1 py-0.5 rounded">
+                                  {channel.unreadCounts[ch.id]}
+                                </span>
+                              )}
+                              {channel.unreadMentions[ch.id] && (
+                                <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded">
+                                  @{channel.unreadMentions[ch.id]}
+                                </span>
+                              )}
+                            </span>
                           </span>
                         </div>
                       ));
@@ -533,11 +550,18 @@ function HomeContent() {
                               <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
                               <span className="truncate">#{ch.name.toUpperCase()}</span>
                             </span>
-                            {channel.unreadMentions[ch.id] && (
-                              <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
-                                @{channel.unreadMentions[ch.id]}
-                              </span>
-                            )}
+                            <span className="flex items-center gap-1">
+                              {channel.unreadCounts[ch.id] && (
+                                <span className="bg-blue-600 text-white text-xs px-1 py-0.5 rounded">
+                                  {channel.unreadCounts[ch.id]}
+                                </span>
+                              )}
+                              {channel.unreadMentions[ch.id] && (
+                                <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded">
+                                  @{channel.unreadMentions[ch.id]}
+                                </span>
+                              )}
+                            </span>
                           </span>
                         </div>
                       ));
@@ -575,11 +599,18 @@ function HomeContent() {
                                     <span className="flex-shrink-0">{channel.currentChannel === ch.id ? '> ' : '  '}</span>
                                     <span className="truncate">#{ch.name.toUpperCase()}</span>
                                   </span>
-                                  {channel.unreadMentions[ch.id] && (
-                                    <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
-                                      @{channel.unreadMentions[ch.id]}
-                                    </span>
-                                  )}
+                                  <span className="flex items-center gap-1 ml-2">
+                                    {channel.unreadCounts[ch.id] && (
+                                      <span className="bg-blue-600 text-white text-xs px-1 py-0.5 rounded">
+                                        {channel.unreadCounts[ch.id]}
+                                      </span>
+                                    )}
+                                    {channel.unreadMentions[ch.id] && (
+                                      <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded">
+                                        @{channel.unreadMentions[ch.id]}
+                                      </span>
+                                    )}
+                                  </span>
                                 </span>
                               </div>
                             ))
@@ -599,7 +630,17 @@ function HomeContent() {
         <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} flex-shrink-0 flex flex-col`}>
           {/* Channel Header */}
           <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
-            <div className={`${currentTheme.accent} text-center`}>[ CHANNELS ]</div>
+            <div className="flex justify-between items-center">
+              <div className="w-6"></div>
+              <div className={`${currentTheme.accent} text-center`}>[ CHANNELS ]</div>
+              <button 
+                onClick={() => channel.refreshChannels()}
+                className={`${currentTheme.accent} ${currentTheme.button} text-xs w-6`}
+                title="Refresh channels, mentions and unread counts"
+              >
+                {channel.isRefreshing ? '[✓]' : '[↻]'}
+              </button>
+            </div>
           </div>
           {/* Channel List */}
           <div className="flex-1 p-4 overflow-auto" style={{
@@ -628,11 +669,18 @@ function HomeContent() {
                             <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
                             <span className="truncate">#{ch.name.toUpperCase()}</span>
                           </span>
-                          {channel.unreadMentions[ch.id] && (
-                            <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
-                              @{channel.unreadMentions[ch.id]}
-                            </span>
-                          )}
+                          <span className="flex items-center gap-1">
+                            {channel.unreadCounts[ch.id] && (
+                              <span className="bg-blue-600 text-white text-xs px-1 py-0.5 rounded">
+                                {channel.unreadCounts[ch.id]}
+                              </span>
+                            )}
+                            {channel.unreadMentions[ch.id] && (
+                              <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded">
+                                @{channel.unreadMentions[ch.id]}
+                              </span>
+                            )}
+                          </span>
                         </span>
                       </div>
                     ));
@@ -654,11 +702,18 @@ function HomeContent() {
                             <span className="w-4 flex-shrink-0">{channel.currentChannel === ch.id ? '>' : ''}</span>
                             <span className="truncate">#{ch.name.toUpperCase()}</span>
                           </span>
-                          {channel.unreadMentions[ch.id] && (
-                            <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded ml-2">
-                              @{channel.unreadMentions[ch.id]}
-                            </span>
-                          )}
+                          <span className="flex items-center gap-1">
+                            {channel.unreadCounts[ch.id] && (
+                              <span className="bg-blue-600 text-white text-xs px-1 py-0.5 rounded">
+                                {channel.unreadCounts[ch.id]}
+                              </span>
+                            )}
+                            {channel.unreadMentions[ch.id] && (
+                              <span className="bg-red-600 text-white text-xs px-1 py-0.5 rounded">
+                                @{channel.unreadMentions[ch.id]}
+                              </span>
+                            )}
+                          </span>
                         </span>
                       </div>
                     ));

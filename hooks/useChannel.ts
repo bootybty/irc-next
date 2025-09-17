@@ -24,6 +24,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   const [joinStatus, setJoinStatus] = useState<'joining' | 'success' | 'failed' | null>(null);
   const [joiningChannelName, setJoiningChannelName] = useState<string>('');
   const [unreadMentions, setUnreadMentions] = useState<Record<string, number>>({});
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<number>(0);
 
 
   const fetchUnreadMentions = useCallback(async () => {
@@ -41,6 +44,46 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         mentionCounts[mention.channel_id] = (mentionCounts[mention.channel_id] || 0) + 1;
       });
       setUnreadMentions(mentionCounts);
+    }
+  }, [userId]);
+
+  const fetchUnreadCounts = useCallback(async () => {
+    if (!userId) return;
+    
+    // Get all user's channel memberships with last_seen timestamps
+    const { data: memberships } = await supabase
+      .from('channel_members')
+      .select('channel_id, last_seen')
+      .eq('user_id', userId);
+    
+    if (!memberships || memberships.length === 0) return;
+    
+    // Get all channel IDs
+    const channelIds = memberships.map(m => m.channel_id);
+    
+    // Get all messages newer than user's last_seen for each channel
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('channel_id, created_at')
+      .in('channel_id', channelIds)
+      .neq('user_id', userId); // Exclude user's own messages
+    
+    if (messages) {
+      const unreadCounts: Record<string, number> = {};
+      
+      memberships.forEach(membership => {
+        const lastSeen = membership.last_seen || '1970-01-01';
+        const unreadMessages = messages.filter(msg => 
+          msg.channel_id === membership.channel_id && 
+          new Date(msg.created_at) > new Date(lastSeen)
+        );
+        
+        if (unreadMessages.length > 0) {
+          unreadCounts[membership.channel_id] = unreadMessages.length;
+        }
+      });
+      
+      setUnreadCounts(unreadCounts);
     }
   }, [userId]);
 
@@ -141,6 +184,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     
     if (userId) {
       fetchUnreadMentions();
+      fetchUnreadCounts();
     }
     
     // Only set default channel if no URL hash and no current channel
@@ -160,7 +204,29 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     }
     
     setExpandedCategories(new Set());
-  }, [fetchUnreadMentions, userId, currentChannel, searchParams]);
+  }, [fetchUnreadMentions, fetchUnreadCounts, userId, currentChannel, searchParams]);
+
+  const refreshChannels = useCallback(async () => {
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastRefresh;
+    
+    // Rate limiting: max once per 10 seconds
+    if (timeSinceLastRefresh < 10000) {
+      return; // Silent ignore - no feedback
+    }
+    
+    setIsRefreshing(true);
+    setLastRefresh(now);
+    
+    try {
+      await fetchCategoriesAndChannels();
+      // Show success feedback for 2 seconds
+      setTimeout(() => setIsRefreshing(false), 2000);
+    } catch (error) {
+      console.error('❌ Failed to refresh channels:', error);
+      setIsRefreshing(false);
+    }
+  }, [lastRefresh, fetchCategoriesAndChannels]);
 
   const fetchChannelMembers = useCallback(async (channelId: string) => {
     const { data: roles } = await supabase
@@ -259,6 +325,14 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     });
   }, [userId]);
 
+  const clearUnreadCount = useCallback((channelId: string) => {
+    setUnreadCounts(prev => {
+      const updated = { ...prev };
+      delete updated[channelId];
+      return updated;
+    });
+  }, []);
+
   const switchChannel = useCallback(async (channelId: string, updateUrl: boolean = true) => {
     // console.log('switchChannel called with:', channelId, 'current:', currentChannel);
     
@@ -284,6 +358,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     });
     
     await markMentionsAsRead(channelId);
+    clearUnreadCount(channelId);
     
     try {
       const [channelResult] = await Promise.all([
@@ -340,7 +415,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       setCurrentChannel(channelId);
       return { success: false, error };
     }
-  }, [categories, markMentionsAsRead, authUser, fetchChannelMembers, joinChannelAsMember]);
+  }, [categories, markMentionsAsRead, clearUnreadCount, authUser, fetchChannelMembers, joinChannelAsMember]);
 
   const toggleCategory = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -444,6 +519,14 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     };
   }, [userId]);
 
+  // Fetch mentions and unread counts when userId becomes available
+  useEffect(() => {
+    if (userId) {
+      fetchUnreadMentions();
+      fetchUnreadCounts();
+    }
+  }, [userId, fetchUnreadMentions, fetchUnreadCounts]);
+
   return {
     currentChannel,
     setCurrentChannel,
@@ -461,7 +544,11 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     joiningChannelName,
     unreadMentions,
     setUnreadMentions,
+    unreadCounts,
+    setUnreadCounts,
     fetchCategoriesAndChannels,
+    refreshChannels,
+    isRefreshing,
     fetchChannelMembers,
     switchChannel,
     toggleCategory,

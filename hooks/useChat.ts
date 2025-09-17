@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { Message, User, AuthUser, ChannelMember } from '@/types';
@@ -14,6 +14,7 @@ export const useChat = (
 ) => {
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [connected, setConnected] = useState(false);
+  const [broadcastChannel, setBroadcastChannel] = useState<BroadcastChannel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
@@ -262,23 +263,47 @@ export const useChat = (
       supabase.removeChannel(channel);
     }
 
-    const channelName = `channel:${channelId}`;
+    // Setup BroadcastChannel for tab coordination
+    if (!broadcastChannel && typeof window !== 'undefined') {
+      const bc = new BroadcastChannel(`chat:${userId}`);
+      setBroadcastChannel(bc);
+      
+      bc.onmessage = (event) => {
+        const { type, payload } = event.data;
+        if (type === 'message' && payload.channel === currentChannel) {
+          setMessages(prev => [...prev, payload]);
+        }
+      };
+    }
+
+    const channelName = `user:${userId}:main`;
     const newChannel = supabase.channel(channelName);
 
     newChannel.on('broadcast', { event: 'message' }, (payload) => {
       if (payload.payload.username !== username) {
-        setMessages(prev => [...prev, payload.payload]);
+        // Only update messages if this tab is viewing the channel
+        if (payload.payload.channel === currentChannel) {
+          setMessages(prev => [...prev, payload.payload]);
+          
+          // Check if user is at bottom right now (not from state)
+          const chatArea = document.querySelector('.chat-area');
+          const isCurrentlyAtBottom = chatArea ? 
+            chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 50 : true;
+          
+          if (!isCurrentlyAtBottom) {
+            setHasNewMessages(true);
+          } else {
+            // Auto-scroll if user is currently at bottom
+            scrollToBottomWhenReady();
+          }
+        }
         
-        // Check if user is at bottom right now (not from state)
-        const chatArea = document.querySelector('.chat-area');
-        const isCurrentlyAtBottom = chatArea ? 
-          chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 50 : true;
-        
-        if (!isCurrentlyAtBottom) {
-          setHasNewMessages(true);
-        } else {
-          // Auto-scroll if user is currently at bottom
-          scrollToBottomWhenReady();
+        // Broadcast to other tabs
+        if (broadcastChannel) {
+          broadcastChannel.postMessage({
+            type: 'message',
+            payload: payload.payload
+          });
         }
       }
     });
@@ -459,6 +484,15 @@ export const useChat = (
     setHasMoreMessages(true);
     // Keep loadedChannels - don't reset so we don't auto-scroll when switching back
   };
+
+  // Cleanup BroadcastChannel on unmount
+  useEffect(() => {
+    return () => {
+      if (broadcastChannel) {
+        broadcastChannel.close();
+      }
+    };
+  }, [broadcastChannel]);
 
   return {
     channel,

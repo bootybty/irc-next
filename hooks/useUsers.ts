@@ -67,38 +67,49 @@ export const useUsers = (
   }, [channelMembers, currentTheme.muted, getRoleColor, theme]);
 
   const displayUsers = useMemo(() => {
-    console.log('🔍 DisplayUsers Debug:');
-    console.log('👥 Present users from presence:', users.map(u => ({ id: u.id, username: u.username })));
-    
     // Get all subscribed members
     const subscribedMembers = channelMembers.filter(m => m.is_subscribed);
-    console.log('📋 Subscribed members:', subscribedMembers.map(m => ({ id: m.user_id, username: m.username })));
     
     // Create user objects for all subscribed members
     const allSubscribedUsers = subscribedMembers.map(member => {
       // Check if this user is currently present (in the 'users' array from presence)
       const isCurrentlyPresent = users.some(u => u.id === member.user_id);
-      const color = getUserListColor(member, isCurrentlyPresent);
-      
-      console.log(`👤 ${member.username}: present=${isCurrentlyPresent}, color=${color}`);
       
       return {
         id: member.user_id,
         username: member.username,
         currentChannel: '',
         role: member.role,
-        roleColor: color,
+        roleColor: getUserListColor(member, isCurrentlyPresent),
         isActive: isCurrentlyPresent // Simple: present = active
       };
     });
     
-    // Sort by presence (present first), then by username
+    // Sort by: 1) Role, 2) Active status, 3) Username
     return allSubscribedUsers.sort((a, b) => {
-      // Present users first
+      // 1. Sort by role hierarchy (owner > moderator > member)
+      const getRolePriority = (role: string) => {
+        switch (role.toLowerCase()) {
+          case 'owner': return 3;
+          case 'moderator':
+          case 'admin': return 2;
+          case 'member':
+          default: return 1;
+        }
+      };
+      
+      const aRolePriority = getRolePriority(a.role);
+      const bRolePriority = getRolePriority(b.role);
+      
+      if (aRolePriority !== bRolePriority) {
+        return bRolePriority - aRolePriority; // Higher priority first
+      }
+      
+      // 2. Within same role, sort by active status (active first)
       if (a.isActive && !b.isActive) return -1;
       if (!a.isActive && b.isActive) return 1;
       
-      // Then by username
+      // 3. Within same role and status, sort alphabetically
       return a.username.localeCompare(b.username);
     });
   }, [users, channelMembers, getUserListColor, currentTheme.muted]);

@@ -49,7 +49,6 @@ export const useCommands = (
 
     if (!canModerate) {
       // Debug info
-      // console.log('Permission denied:', { userRole, userPermissions, command });
       const errorMsg = {
         id: `error_${Date.now()}`,
         username: 'SYSTEM',
@@ -104,7 +103,6 @@ export const useCommands = (
     try {
       switch (command) {
         case 'ban':
-          // console.log('Starting ban process for:', targetUsername);
           
           try {
             const response = await fetch('/api/ban', {
@@ -128,12 +126,10 @@ export const useCommands = (
             }
 
             await response.json();
-            // console.log('Ban successful:', result);
 
             // Refresh channel members to remove banned user from UI
             fetchChannelMembers(currentChannel);
             
-            // console.log('Ban process completed for:', targetUsername);
           } catch (error) {
             // console.error('Ban API error:', error);
             const errorMsg = {

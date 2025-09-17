@@ -77,7 +77,6 @@ export default function PrivacyCenter({ onClose }: PrivacyCenterProps) {
         return;
       }
 
-      console.log('Calling delete account API...');
       
       // Call our API route to delete the account
       const response = await fetch('/api/delete-account', {
@@ -88,17 +87,13 @@ export default function PrivacyCenter({ onClose }: PrivacyCenterProps) {
         }
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       let result;
       try {
         result = await response.json();
-        console.log('Response body:', result);
       } catch (jsonError) {
         console.error('Failed to parse JSON response:', jsonError);
         const text = await response.text();
-        console.log('Raw response text:', text);
         alert('ERROR: Invalid response from server. Please contact support via GitHub.');
         return;
       }

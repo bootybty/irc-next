@@ -61,39 +61,22 @@ export const useChat = (
   }, [isAtBottom]);
 
   const loadMoreMessages = useCallback(async (channelId: string) => {
-    console.log('🎯 loadMoreMessages CALLED with channel:', channelId);
-    
     // Simple guards
     if (isLoadingMore || !hasMoreMessages) {
-      console.log('❌ Cannot load more:', { 
-        isLoadingMore, 
-        hasMoreMessages,
-        channelId,
-        currentChannel,
-        messagesLength: messages.length
-      });
       return;
     }
     
     setIsLoadingMore(true);
     
-    // Get oldest message timestamp - SIMPLE
+    // Get oldest message timestamp
     const oldestMessage = messages[0];
     if (!oldestMessage) {
-      console.log('❌ No messages to load more from');
       setIsLoadingMore(false);
       return;
     }
     
     // Use created_at if available, otherwise convert timestamp
     const oldestTimestamp = oldestMessage.created_at || oldestMessage.timestamp.toISOString();
-    console.log('📥 Loading messages older than:', oldestTimestamp, 'Current count:', messages.length);
-    console.log('📊 Oldest message details:', { 
-      id: oldestMessage.id, 
-      created_at: oldestMessage.created_at,
-      timestamp: oldestMessage.timestamp,
-      username: oldestMessage.username 
-    });
     
     // Store scroll position for later adjustment
     const chatArea = document.querySelector('.chat-area');
@@ -118,13 +101,6 @@ export const useChat = (
     }
     
     try {
-      // SIMPLE query - get 50 older messages
-      console.log('🔍 Querying messages with:', {
-        channel_id: channelId,
-        before: oldestTimestamp,
-        currentChannel,
-        limit: 50
-      });
       
       const { data, error } = await supabase
         .from('messages')
@@ -135,12 +111,6 @@ export const useChat = (
         .limit(50);
 
       if (error) throw error;
-      
-      console.log('📦 Query result:', {
-        messagesFound: data?.length || 0,
-        firstMessage: data?.[0],
-        lastMessage: data?.[data?.length - 1]
-      });
 
       if (data && data.length > 0) {
         // Format and add messages
@@ -159,9 +129,6 @@ export const useChat = (
         // If we got less than 50, there are no more messages
         if (data.length < 50) {
           setHasMoreMessages(false);
-          console.log('✅ Loaded final batch:', data.length, 'messages');
-        } else {
-          console.log('✅ Loaded:', data.length, 'messages, more available');
         }
         
         // Maintain scroll position - keep viewing the same messages
@@ -174,29 +141,20 @@ export const useChat = (
               const currentOffset = rect.top - chatRect.top;
               const scrollAdjustment = currentOffset - firstVisibleOffset;
               chatArea.scrollTop += scrollAdjustment;
-              console.log('📏 Scroll adjusted by element position:', {
-                scrollAdjustment,
-                newScrollTop: chatArea.scrollTop
-              });
             } else {
               // Fallback to height-based adjustment
               const newScrollHeight = chatArea.scrollHeight;
               const heightAdded = newScrollHeight - oldScrollHeight;
               chatArea.scrollTop = oldScrollTop + heightAdded;
-              console.log('📏 Scroll adjusted by height:', {
-                heightAdded,
-                newScrollTop: chatArea.scrollTop
-              });
             }
           }
         });
       } else {
         // No more messages
         setHasMoreMessages(false);
-        console.log('✅ No more messages in database');
       }
     } catch (error) {
-      console.error('❌ Load more error:', error);
+      // Error loading more messages
     }
     
     setIsLoadingMore(false);
@@ -218,21 +176,6 @@ export const useChat = (
     }
   }, []);
 
-  const debugPresence = useCallback(() => {
-    if (!channel) {
-      console.log('❌ No channel available for presence debug');
-      return;
-    }
-    
-    console.log('🔍 DEBUG: Current presence state:');
-    const presenceState = channel.presenceState();
-    console.log('👥 Presence state:', presenceState);
-    
-    const allConnections = Object.values(presenceState).flat() as unknown as User[];
-    console.log('👥 All connections:', allConnections);
-    
-    console.log('👥 Current users state:', users);
-  }, [channel, users]);
 
 
   const detectAndStoreMentions = async (content: string, messageId: string) => {
@@ -347,10 +290,8 @@ export const useChat = (
     });
 
     newChannel.on('presence', { event: 'sync' }, () => {
-      console.log('🔄 Presence sync event fired for channel:', channelId);
       const presenceState = newChannel.presenceState();
       const allConnections = Object.values(presenceState).flat() as unknown as User[];
-      console.log('👥 All connections:', allConnections.length, allConnections);
       
       const uniqueUsers = allConnections.reduce((unique: User[], user) => {
         const existingUser = unique.find(u => u.id === user.id);
@@ -368,17 +309,14 @@ export const useChat = (
         };
       });
       
-      console.log('👥 Setting users to:', usersWithRoles);
       setUsers(usersWithRoles);
     });
 
-    newChannel.on('presence', { event: 'join' }, (payload) => {
-      console.log('✅ User JOIN event fired:', payload);
+    newChannel.on('presence', { event: 'join' }, () => {
       // Presence sync will handle updating the users list
     });
 
-    newChannel.on('presence', { event: 'leave' }, (payload) => {
-      console.log('❌ User LEAVE event fired:', payload);
+    newChannel.on('presence', { event: 'leave' }, () => {
       // Presence sync will handle updating the users list
     });
 
@@ -459,8 +397,6 @@ export const useChat = (
   };
 
   const loadChannelMessages = useCallback(async (channelId: string) => {
-    console.log('📂 Loading initial messages for channel:', channelId);
-    
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -469,7 +405,6 @@ export const useChat = (
       .limit(100);
 
     if (error) {
-      console.error('❌ Error loading initial messages:', error);
       return;
     }
 
@@ -486,8 +421,6 @@ export const useChat = (
       setMessages(messages);
       // If we got 100 messages, there might be more
       setHasMoreMessages(data.length === 100);
-      
-      console.log('✅ Loaded initial:', data.length, 'messages, hasMore:', data.length === 100);
       
       // Auto-scroll to bottom on first load
       if (!loadedChannels.has(channelId)) {
@@ -537,7 +470,6 @@ export const useChat = (
     clearMessages,
     scrollToBottom,
     scrollToBottomWhenReady,
-    checkScrollPosition,
-    debugPresence
+    checkScrollPosition
   };
 };

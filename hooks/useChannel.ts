@@ -395,7 +395,6 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   }, [lastRefresh, fetchCategoriesAndChannels]);
 
   const fetchChannelMembers = useCallback(async (channelId: string) => {
-    console.log('📥 Fetching channel members for:', channelId);
     const { data: roles } = await supabase
       .from('channel_roles')
       .select('*')
@@ -416,7 +415,6 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       .eq('is_subscribed', true);
 
     if (members) {
-      console.log('👥 Channel members fetched:', members.length, members.map(m => ({ username: m.username, is_active: m.is_active })));
       setChannelMembers(members);
 
       if (authUser && userId) {
@@ -563,7 +561,6 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   }, []);
 
   const switchChannel = useCallback(async (channelId: string, updateUrl: boolean = true) => {
-    // console.log('switchChannel called with:', channelId, 'current:', currentChannel);
     
     let channelName = 'unknown-channel';
     for (const category of categories) {
@@ -579,7 +576,6 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       window.history.replaceState({}, '', newUrl);
     }
     
-    // console.log('Setting currentChannel to:', channelId);
     
     startTransition(() => {
       setJoinStatus('joining');
@@ -685,21 +681,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     return member?.is_subscribed || false;
   }, [userId, channelMembers]);
 
-  const debugActiveStatus = useCallback(async () => {
-    console.log('🔍 DEBUG: Current channel members status:');
-    const { data: members } = await supabase
-      .from('channel_members')
-      .select('username, is_active, is_subscribed, last_activity')
-      .eq('channel_id', currentChannel)
-      .eq('is_subscribed', true);
-    
-    console.table(members);
-    return members;
-  }, [currentChannel]);
 
   useEffect(() => {
     const urlChannelName = window.location.hash.slice(1) || '';
-    // console.log('URL channel name from hash:', urlChannelName, 'Categories loaded:', categories.length);
     
     if (urlChannelName && categories.length > 0) {
       let foundChannelId = '';
@@ -707,14 +691,12 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         const channel = category.channels?.find(c => c.name === urlChannelName);
         if (channel) {
           foundChannelId = channel.id;
-          // console.log('Found channel:', channel.name, 'ID:', foundChannelId);
           break;
         }
       }
       
       if (foundChannelId) {
         // Always switch to URL hash channel, even if already current
-        // console.log('Switching to channel:', foundChannelId);
         setCurrentChannel(foundChannelId);
       }
     } else if (!urlChannelName && categories.length > 0 && !currentChannel) {
@@ -817,7 +799,6 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     getRoleColor,
     subscribeToChannel,
     unsubscribeFromChannel,
-    isUserSubscribed,
-    debugActiveStatus
+    isUserSubscribed
   };
 };

@@ -1041,24 +1041,6 @@ function HomeContent() {
           >
             [INFO]
           </button>
-          {auth.authUser && (
-            <>
-              <button
-                onClick={() => channel.debugActiveStatus()}
-                className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
-                title="Debug Active Status"
-              >
-                [DEBUG-DB]
-              </button>
-              <button
-                onClick={() => chat.debugPresence()}
-                className={`${currentTheme.accent} ${currentTheme.button} text-xs`}
-                title="Debug Presence"
-              >
-                [DEBUG-P]
-              </button>
-            </>
-          )}
         </div>
         <div className="text-xs font-mono">
           {chat.connected ? 'CONNECTED' : 'DISCONNECTED'}

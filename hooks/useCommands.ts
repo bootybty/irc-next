@@ -8,6 +8,8 @@ interface CommandSuggestion {
   description: string;
   requiresRole?: string;
   requiresPermission?: string;
+  isUser?: boolean;
+  isRole?: boolean;
 }
 
 interface PendingDelete {

@@ -8,6 +8,7 @@ import ThemeSelector from '@/components/ThemeSelector';
 import PrivacyCenter from '@/components/PrivacyCenter';
 import CookieConsent from '@/components/CookieConsent';
 import TrackingStatus from '@/components/TrackingStatus';
+import ChannelInfo from '@/components/ChannelInfo';
 import { useTheme, themes } from '@/components/ThemeProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useChannel } from '@/hooks/useChannel';
@@ -115,6 +116,8 @@ function HomeContent() {
       ui.setIsJoined(true);
     }
   }, [ui.isJoined, channel.currentChannel, handleChannelSwitch, ui]);
+
+  // No automatic scroll effects here - handled in loadChannelMessages only
 
   const sendMessage = async () => {
     if (chat.channel && ui.inputMessage.trim() && auth.authUser) {
@@ -646,15 +649,21 @@ function HomeContent() {
         </div>
 
         {/* Main Terminal */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <div className={`border-b ${currentTheme.border} p-2`}>
-            <div className="text-center hidden sm:block">
-              <div className="truncate">
-                === CONNECTED TO #{channel.getCurrentChannelName().toUpperCase()} ===
-              </div>
-            </div>
-            <div className="text-center sm:hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          {/* Channel Info */}
+          <div className="hidden sm:block">
+            <ChannelInfo
+              channelName={channel.getCurrentChannelName()}
+              topic={channel.currentTopic}
+              motd={channel.currentMotd}
+              memberCount={users.displayUsers.length}
+              joinStatus={channel.joinStatus}
+              joiningChannelName={channel.joiningChannelName}
+            />
+          </div>
+          {/* Mobile Header - Simplified */}
+          <div className={`sm:hidden border-b ${currentTheme.border} p-2`}>
+            <div className="text-center">
               <div className="truncate px-2">
                 #{channel.getCurrentChannelName().toUpperCase()}
               </div>
@@ -662,29 +671,30 @@ function HomeContent() {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 p-2 sm:p-4 overflow-auto chat-area" style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: currentTheme.scrollbar
-          }}>
+          <div 
+            className="flex-1 p-2 sm:p-4 overflow-y-auto chat-area min-h-0" 
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: currentTheme.scrollbar
+            }}
+            onScroll={chat.checkScrollPosition}
+          >
             <div className="space-y-1">
-              {channel.joinStatus && channel.joiningChannelName && (
-                <div className={`hidden sm:block ${
-                  channel.joinStatus === 'joining' ? currentTheme.highlight :
-                  channel.joinStatus === 'success' ? currentTheme.success : currentTheme.error
-                }`}>
-                  *** {
-                    channel.joinStatus === 'joining' ? `JOINING #${channel.joiningChannelName.toUpperCase()}...` :
-                    channel.joinStatus === 'success' ? `JOINED #${channel.joiningChannelName.toUpperCase()} SUCCESSFULLY` :
-                    `FAILED TO JOIN #${channel.joiningChannelName.toUpperCase()}`
-                  } ***
+              {/* Loading Indicator at Top */}
+              {chat.isLoadingMore && (
+                <div className={`text-center py-3 ${currentTheme.highlight} animate-pulse`}>
+                  <div>*** LOADING OLDER MESSAGES... ***</div>
+                  <div className="text-xs mt-1">Scroll will adjust automatically</div>
                 </div>
               )}
-              {channel.currentTopic && (
-                <div className={`hidden sm:block ${currentTheme.cyan}`}>*** TOPIC: {channel.currentTopic.toUpperCase()} ***</div>
+              
+              {/* No More Messages Indicator */}
+              {!chat.hasMoreMessages && chat.messages.length > 100 && (
+                <div className={`text-center py-2 ${currentTheme.muted} text-xs`}>
+                  <div>*** NO MORE MESSAGES ***</div>
+                </div>
               )}
-              {channel.currentMotd && (
-                <div className={`hidden sm:block ${currentTheme.purple}`}>*** MOTD: {channel.currentMotd} ***</div>
-              )}
+              
               {!auth.authUser && (
                 <div className={currentTheme.highlight}>*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
               )}
@@ -694,12 +704,24 @@ function HomeContent() {
                 const time = new Date(message.timestamp).toLocaleTimeString('en-US', { hour12: false });
                 const userColor = users.getUserRoleColor(message.username);
                 return (
-                  <div key={message.id} className={`${currentTheme.text} break-words`}>
+                  <div key={message.id} className={`message-item ${currentTheme.text} break-words`}>
                     <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {formatMessageContent(message.content)}
                   </div>
                 );
               })}
             </div>
+            
+            {/* New Messages Indicator */}
+            {chat.hasNewMessages && !chat.isAtBottom && (
+              <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-10">
+                <button 
+                  onClick={() => chat.scrollToBottom(true)}
+                  className={`${currentTheme.accent} ${currentTheme.button} px-4 py-2 rounded shadow-lg animate-pulse`}
+                >
+                  ↓ NEW MESSAGES ↓
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Command Autocomplete */}

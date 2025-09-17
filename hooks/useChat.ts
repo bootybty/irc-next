@@ -17,6 +17,230 @@ export const useChat = (
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [lastScrollCheck, setLastScrollCheck] = useState(0);
+  const [loadedChannels, setLoadedChannels] = useState<Set<string>>(new Set());
+
+  // Smart scroll behavior functions
+  const scrollToBottom = (force = false) => {
+    const chatArea = document.querySelector('.chat-area');
+    if (chatArea && (force || isAtBottom)) {
+      chatArea.scrollTop = chatArea.scrollHeight;
+      setHasNewMessages(false);
+    }
+  };
+
+  const loadMoreMessages = useCallback(async (channelId: string) => {
+    console.log('🎯 loadMoreMessages CALLED with channel:', channelId);
+    
+    // Simple guards
+    if (isLoadingMore || !hasMoreMessages) {
+      console.log('❌ Cannot load more:', { 
+        isLoadingMore, 
+        hasMoreMessages,
+        channelId,
+        currentChannel,
+        messagesLength: messages.length
+      });
+      return;
+    }
+    
+    setIsLoadingMore(true);
+    
+    // Get oldest message timestamp - SIMPLE
+    const oldestMessage = messages[0];
+    if (!oldestMessage) {
+      console.log('❌ No messages to load more from');
+      setIsLoadingMore(false);
+      return;
+    }
+    
+    // Use created_at if available, otherwise convert timestamp
+    const oldestTimestamp = oldestMessage.created_at || oldestMessage.timestamp.toISOString();
+    console.log('📥 Loading messages older than:', oldestTimestamp, 'Current count:', messages.length);
+    console.log('📊 Oldest message details:', { 
+      id: oldestMessage.id, 
+      created_at: oldestMessage.created_at,
+      timestamp: oldestMessage.timestamp,
+      username: oldestMessage.username 
+    });
+    
+    // Store scroll position for later adjustment
+    const chatArea = document.querySelector('.chat-area');
+    const oldScrollHeight = chatArea?.scrollHeight || 0;
+    const oldScrollTop = chatArea?.scrollTop || 0;
+    
+    // Find the first visible message element before loading
+    const messageElements = chatArea?.querySelectorAll('.message-item');
+    let firstVisibleMessage = null;
+    let firstVisibleOffset = 0;
+    
+    if (messageElements) {
+      for (const elem of messageElements) {
+        const rect = elem.getBoundingClientRect();
+        const chatRect = chatArea.getBoundingClientRect();
+        if (rect.top >= chatRect.top) {
+          firstVisibleMessage = elem;
+          firstVisibleOffset = rect.top - chatRect.top;
+          break;
+        }
+      }
+    }
+    
+    try {
+      // SIMPLE query - get 50 older messages
+      console.log('🔍 Querying messages with:', {
+        channel_id: channelId,
+        before: oldestTimestamp,
+        currentChannel,
+        limit: 50
+      });
+      
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('channel_id', channelId)
+        .lt('created_at', oldestTimestamp)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      
+      console.log('📦 Query result:', {
+        messagesFound: data?.length || 0,
+        firstMessage: data?.[0],
+        lastMessage: data?.[data?.length - 1]
+      });
+
+      if (data && data.length > 0) {
+        // Format and add messages
+        const newMessages = data.reverse().map(msg => ({
+          id: msg.id,
+          username: msg.username,
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          channel: channelId,
+          created_at: msg.created_at  // Keep original for queries
+        }));
+        
+        // Add to beginning of array
+        setMessages(prev => [...newMessages, ...prev]);
+        
+        // If we got less than 50, there are no more messages
+        if (data.length < 50) {
+          setHasMoreMessages(false);
+          console.log('✅ Loaded final batch:', data.length, 'messages');
+        } else {
+          console.log('✅ Loaded:', data.length, 'messages, more available');
+        }
+        
+        // Maintain scroll position - keep viewing the same messages
+        requestAnimationFrame(() => {
+          if (chatArea) {
+            // Try to find the same message that was visible before
+            if (firstVisibleMessage) {
+              const rect = firstVisibleMessage.getBoundingClientRect();
+              const chatRect = chatArea.getBoundingClientRect();
+              const currentOffset = rect.top - chatRect.top;
+              const scrollAdjustment = currentOffset - firstVisibleOffset;
+              chatArea.scrollTop += scrollAdjustment;
+              console.log('📏 Scroll adjusted by element position:', {
+                scrollAdjustment,
+                newScrollTop: chatArea.scrollTop
+              });
+            } else {
+              // Fallback to height-based adjustment
+              const newScrollHeight = chatArea.scrollHeight;
+              const heightAdded = newScrollHeight - oldScrollHeight;
+              chatArea.scrollTop = oldScrollTop + heightAdded;
+              console.log('📏 Scroll adjusted by height:', {
+                heightAdded,
+                newScrollTop: chatArea.scrollTop
+              });
+            }
+          }
+        });
+      } else {
+        // No more messages
+        setHasMoreMessages(false);
+        console.log('✅ No more messages in database');
+      }
+    } catch (error) {
+      console.error('❌ Load more error:', error);
+    }
+    
+    setIsLoadingMore(false);
+  }, [messages, isLoadingMore, hasMoreMessages, currentChannel]);
+
+  const checkScrollPosition = useCallback(() => {
+    const chatArea = document.querySelector('.chat-area');
+    if (!chatArea) {
+      console.log('⚠️ No chat area found');
+      return;
+    }
+
+    const scrollTop = chatArea.scrollTop;
+    const clientHeight = chatArea.clientHeight;
+    const scrollHeight = chatArea.scrollHeight;
+    
+    // Debug every scroll near top
+    if (scrollTop < 500) {
+      console.log('📍 Scroll position:', {
+        scrollTop,
+        threshold: 200,
+        isNearTop: scrollTop < 200,
+        hasMoreMessages,
+        isLoadingMore,
+        currentChannel,
+        messagesCount: messages.length,
+        timeSinceLastCheck: Date.now() - lastScrollCheck
+      });
+    }
+    
+    // Check if at bottom for auto-scroll new messages
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+    setIsAtBottom(isAtBottom);
+    if (isAtBottom) {
+      setHasNewMessages(false);
+    }
+    
+    // Check if near top for lazy loading - SIMPLE
+    if (scrollTop < 200) {
+      console.log('🔝 Near top detected!', {
+        hasMoreMessages,
+        isLoadingMore,
+        currentChannel
+      });
+      
+      if (hasMoreMessages && !isLoadingMore) {
+        const now = Date.now();
+        const timeSinceLastCheck = now - lastScrollCheck;
+        
+        console.log('⏱️ Checking throttle:', {
+          timeSinceLastCheck,
+          threshold: 1000,
+          canLoad: timeSinceLastCheck > 1000
+        });
+        
+        // Simple throttle - 1 second between loads
+        if (timeSinceLastCheck > 1000) {
+          console.log('🚀🚀🚀 CALLING loadMoreMessages NOW!');
+          setLastScrollCheck(now);
+          loadMoreMessages(currentChannel);
+        } else {
+          console.log('⏳ Throttled - wait', 1000 - timeSinceLastCheck, 'ms');
+        }
+      } else {
+        console.log('❌ Cannot load:', {
+          hasMoreMessages,
+          isLoadingMore
+        });
+      }
+    }
+  }, [hasMoreMessages, isLoadingMore, currentChannel, loadMoreMessages, lastScrollCheck, messages.length]);
 
   const detectAndStoreMentions = async (content: string, messageId: string) => {
     const mentionRegex = /@(\w+)/g;
@@ -69,6 +293,18 @@ export const useChat = (
     newChannel.on('broadcast', { event: 'message' }, (payload) => {
       if (payload.payload.username !== username) {
         setMessages(prev => [...prev, payload.payload]);
+        
+        // Check if user is at bottom right now (not from state)
+        const chatArea = document.querySelector('.chat-area');
+        const isCurrentlyAtBottom = chatArea ? 
+          chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 50 : true;
+        
+        if (!isCurrentlyAtBottom) {
+          setHasNewMessages(true);
+        } else {
+          // Auto-scroll if user is currently at bottom
+          setTimeout(() => scrollToBottom(), 50);
+        }
       }
     });
 
@@ -169,12 +405,7 @@ export const useChat = (
 
       setMessages(prev => [...prev, message]);
       
-      setTimeout(() => {
-        const chatArea = document.querySelector('.chat-area');
-        if (chatArea) {
-          chatArea.scrollTop = chatArea.scrollHeight;
-        }
-      }, 0);
+      setTimeout(() => scrollToBottom(true), 0);
 
       await channel.send({
         type: 'broadcast',
@@ -204,34 +435,54 @@ export const useChat = (
   };
 
   const loadChannelMessages = useCallback(async (channelId: string) => {
-    const { data: messagesResult, error } = await supabase
+    console.log('📂 Loading initial messages for channel:', channelId);
+    
+    const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('channel_id', channelId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(100);
 
     if (error) {
-      console.error(`Error loading messages:`, error);
+      console.error('❌ Error loading initial messages:', error);
       return;
     }
 
-    if (messagesResult) {
-      const formattedMessages = messagesResult.map(msg => ({
+    if (data) {
+      const messages = data.reverse().map(msg => ({
         id: msg.id,
         username: msg.username,
         content: msg.content,
         timestamp: new Date(msg.created_at),
-        channel: channelId
+        channel: channelId,
+        created_at: msg.created_at  // Keep original for queries
       }));
-      setMessages(formattedMessages);
+      
+      setMessages(messages);
+      // If we got 100 messages, there might be more
+      setHasMoreMessages(data.length === 100);
+      
+      console.log('✅ Loaded initial:', data.length, 'messages, hasMore:', data.length === 100);
+      
+      // Auto-scroll to bottom on first load
+      if (!loadedChannels.has(channelId)) {
+        setLoadedChannels(prev => new Set([...prev, channelId]));
+        setTimeout(() => scrollToBottom(true), 100);
+      }
     }
-  }, []);
+  }, [loadedChannels]);
 
   const clearMessages = () => {
     setMessages([]);
     setUsers([]);
     setLocalMessages([]);
+    setIsAtBottom(true);
+    setHasNewMessages(false);
+    setIsLoadingMore(false);
+    setHasMoreMessages(true);
+    setLastScrollCheck(0);
+    // Keep loadedChannels - don't reset so we don't auto-scroll when switching back
   };
 
   return {
@@ -243,9 +494,16 @@ export const useChat = (
     setUsers,
     localMessages,
     setLocalMessages,
+    isAtBottom,
+    hasNewMessages,
+    isLoadingMore,
+    hasMoreMessages,
     joinChannel,
     sendMessage,
     loadChannelMessages,
-    clearMessages
+    loadMoreMessages,
+    clearMessages,
+    scrollToBottom,
+    checkScrollPosition
   };
 };

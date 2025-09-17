@@ -9,6 +9,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   channel: string;
+  created_at?: string;  // ISO string from database for queries
 }
 
 export interface User {

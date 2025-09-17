@@ -714,8 +714,8 @@ function HomeContent() {
                   onClick={() => selectSuggestion(index)}
                   className={`p-2 cursor-pointer border-b ${currentTheme.border} ${
                     index === commands.selectedSuggestion 
-                      ? `bg-gray-700 ${currentTheme.highlight}` 
-                      : `${currentTheme.text} hover:bg-gray-800`
+                      ? `${currentTheme.suggestionSelected} ${currentTheme.highlight}` 
+                      : `${currentTheme.text} ${currentTheme.suggestionHover}`
                   }`}
                 >
                   <div className="font-mono text-xs">

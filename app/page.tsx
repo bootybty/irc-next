@@ -838,7 +838,13 @@ function HomeContent() {
             
             {/* Command Autocomplete */}
             {auth.authUser && commands.showCommandSuggestions && (
-              <div className={`absolute bottom-full left-0 right-0 border ${currentTheme.border} ${currentTheme.background} max-h-48 z-50 shadow-lg flex flex-col command-suggestions`}>
+              <div 
+                className={`absolute bottom-full left-0 right-0 border ${currentTheme.border} ${currentTheme.background} z-50 shadow-lg flex flex-col command-suggestions`} 
+                style={{ 
+                  maxHeight: 'min(60vh, 240px)',
+                  minHeight: commands.commandSuggestions.length >= 4 ? '200px' : 'auto'
+                }}
+              >
                 <div className={`flex-1 overflow-y-auto`} style={{
                   scrollbarWidth: 'thin',
                   scrollbarColor: currentTheme.scrollbar

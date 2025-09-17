@@ -161,7 +161,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     const processedCategories = categoriesData.map(cat => ({
       ...cat,
       created_at: new Date().toISOString(),
-      channels: cat.channels?.map(ch => ({
+      channels: cat.channels?.sort((a, b) => a.name.localeCompare(b.name))?.map(ch => ({
         ...ch,
         created_at: new Date().toISOString()
       }))
@@ -174,7 +174,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         emoji: '🌍',
         color: '#10b981',
         sort_order: -1,
-        channels: universalData.map(ch => ({
+        channels: universalData.sort((a, b) => a.name.localeCompare(b.name)).map(ch => ({
           ...ch,
           created_at: new Date().toISOString()
         })),
@@ -189,7 +189,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         emoji: '📁',
         color: '#6b7280',
         sort_order: 1000,
-        channels: uncategorizedData.map(ch => ({
+        channels: uncategorizedData.sort((a, b) => a.name.localeCompare(b.name)).map(ch => ({
           ...ch,
           created_at: new Date().toISOString()
         })),
@@ -317,7 +317,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       ...cat,
       // @ts-expect-error Database type mismatch
       created_at: cat.created_at || new Date().toISOString(),
-      channels: cat.channels?.map(ch => ({
+      channels: cat.channels?.sort((a, b) => a.name.localeCompare(b.name))?.map(ch => ({
         ...ch,
         // @ts-expect-error Database type mismatch  
         created_at: ch.created_at || new Date().toISOString()

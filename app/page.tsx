@@ -776,47 +776,6 @@ function HomeContent() {
             )}
           </div>
 
-          {/* Command Autocomplete */}
-          {auth.authUser && commands.showCommandSuggestions && (
-            <div className={`absolute bottom-full left-0 right-0 border ${currentTheme.border} ${currentTheme.background} max-h-48 overflow-y-auto command-suggestions z-50 shadow-lg`} style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: currentTheme.scrollbar
-            }}>
-              {commands.commandSuggestions.map((suggestion, index) => (
-                <div
-                  key={suggestion.command}
-                  onClick={() => selectSuggestion(index)}
-                  className={`p-2 cursor-pointer border-b ${currentTheme.border} ${
-                    index === commands.selectedSuggestion 
-                      ? `${currentTheme.suggestionSelected} ${currentTheme.highlight}` 
-                      : `${currentTheme.text} ${currentTheme.suggestionHover}`
-                  }`}
-                >
-                  <div className="font-mono text-xs">
-                    <span className={currentTheme.highlight}>
-                      {suggestion.command === '__help_only__' 
-                        ? 'Type reason...' 
-                        : suggestion.isUser || suggestion.isRole 
-                          ? suggestion.command 
-                          : `/${suggestion.command}`}
-                    </span>
-                    <div className={`${currentTheme.muted} text-xs mt-1`}>
-                      {suggestion.description}
-                      {suggestion.requiresRole && (
-                        <span className={`ml-2 ${currentTheme.error}`}>
-                          ({suggestion.requiresRole}+ only)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div className={`p-1 text-xs ${currentTheme.muted} text-center border-b ${currentTheme.border}`}>
-                ↑↓ Navigate • TAB/ENTER Select • ESC Cancel
-              </div>
-            </div>
-          )}
-
           {/* Input Line */}
           <div className={`relative border-t ${currentTheme.border} p-2 cursor-text`} onClick={() => {
             const textarea = document.querySelector('textarea');
@@ -858,6 +817,47 @@ function HomeContent() {
                 >
                   *** LOGIN TO CHAT ***
                 </button>
+              </div>
+            )}
+            
+            {/* Command Autocomplete */}
+            {auth.authUser && commands.showCommandSuggestions && (
+              <div className={`absolute bottom-full left-0 right-0 border ${currentTheme.border} ${currentTheme.background} max-h-48 overflow-y-auto command-suggestions z-50 shadow-lg`} style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: currentTheme.scrollbar
+              }}>
+                {commands.commandSuggestions.map((suggestion, index) => (
+                  <div
+                    key={suggestion.command}
+                    onClick={() => selectSuggestion(index)}
+                    className={`p-2 cursor-pointer border-b ${currentTheme.border} ${
+                      index === commands.selectedSuggestion 
+                        ? `${currentTheme.suggestionSelected} ${currentTheme.highlight}` 
+                        : `${currentTheme.text} ${currentTheme.suggestionHover}`
+                    }`}
+                  >
+                    <div className="font-mono text-xs">
+                      <span className={currentTheme.highlight}>
+                        {suggestion.command === '__help_only__' 
+                          ? 'Type reason...' 
+                          : suggestion.isUser || suggestion.isRole 
+                            ? suggestion.command 
+                            : `/${suggestion.command}`}
+                      </span>
+                      <div className={`${currentTheme.muted} text-xs mt-1`}>
+                        {suggestion.description}
+                        {suggestion.requiresRole && (
+                          <span className={`ml-2 ${currentTheme.error}`}>
+                            ({suggestion.requiresRole}+ only)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className={`p-1 text-xs ${currentTheme.muted} text-center border-b ${currentTheme.border}`}>
+                  ↑↓ Navigate • TAB/ENTER Select • ESC Cancel
+                </div>
               </div>
             )}
           </div>

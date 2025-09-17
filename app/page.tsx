@@ -395,7 +395,7 @@ function HomeContent() {
               scrollbarColor: currentTheme.scrollbar
             }}>
               <div className="flex justify-between items-center mb-4">
-                <div className={currentTheme.accent}>CHANNELS:</div>
+                <div className={`${currentTheme.accent} text-center flex-1`}>[ CHANNELS ]</div>
                 <button onClick={() => ui.setShowSidebar(false)} className={currentTheme.error}>[X]</button>
               </div>
               <div className="ml-2">
@@ -518,7 +518,7 @@ function HomeContent() {
           scrollbarColor: currentTheme.scrollbar
         }}>
           <div className="mb-4">
-            <div className={currentTheme.accent}>CHANNELS:</div>
+            <div className={`${currentTheme.accent} text-center mb-3 pb-2 border-b ${currentTheme.border}`}>[ CHANNELS ]</div>
             <div className="ml-2">
               {channel.categories.length === 0 ? (
                 <div className={`${currentTheme.muted} italic`}>No categories available</div>

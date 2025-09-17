@@ -390,7 +390,10 @@ function HomeContent() {
         {/* Mobile Sidebar Overlay */}
         {ui.showSidebar && (
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowSidebar(false)}>
-            <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} p-4`} onClick={(e) => e.stopPropagation()}>
+            <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} p-4 overflow-auto`} onClick={(e) => e.stopPropagation()} style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#1f2937 #000000'
+            }}>
               <div className="flex justify-between items-center mb-4">
                 <div className={currentTheme.accent}>CHANNELS:</div>
                 <button onClick={() => ui.setShowSidebar(false)} className={currentTheme.error}>[X]</button>
@@ -510,7 +513,10 @@ function HomeContent() {
         )}
 
         {/* Desktop Channel List */}
-        <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} p-4 flex-shrink-0 overflow-auto`}>
+        <div className={`hidden sm:block w-64 lg:w-72 border-r ${currentTheme.border} p-4 flex-shrink-0 overflow-auto`} style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#1f2937 #000000'
+        }}>
           <div className="mb-4">
             <div className={currentTheme.accent}>CHANNELS:</div>
             <div className="ml-2">
@@ -751,7 +757,10 @@ function HomeContent() {
         {/* Mobile Users Overlay */}
         {ui.showUsers && (
           <div className="absolute inset-0 bg-black bg-opacity-75 z-20 sm:hidden" onClick={() => ui.setShowUsers(false)}>
-            <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} p-4 ml-auto`} onClick={(e) => e.stopPropagation()}>
+            <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} p-4 ml-auto overflow-auto`} onClick={(e) => e.stopPropagation()} style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#1f2937 #000000'
+            }}>
               {(() => {
                 const displayUsers = users.displayUsers;
                 const userCount = displayUsers.length;

@@ -4,9 +4,10 @@ import { useTheme, themes } from './ThemeProvider';
 
 interface CookiePolicyProps {
   onClose: () => void;
+  onBack: () => void;
 }
 
-export default function CookiePolicy({ onClose }: CookiePolicyProps) {
+export default function CookiePolicy({ onClose, onBack }: CookiePolicyProps) {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
 
@@ -28,6 +29,13 @@ export default function CookiePolicy({ onClose }: CookiePolicyProps) {
               [CLOSE]
             </button>
           </div>
+
+          <button
+            onClick={onBack}
+            className={`${currentTheme.accent} ${currentTheme.button} mb-4`}
+          >
+            ← BACK
+          </button>
 
           <div className="space-y-6">
             <section>

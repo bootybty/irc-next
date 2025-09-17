@@ -309,6 +309,14 @@ function HomeContent() {
     channel.fetchCategoriesAndChannels();
   };
 
+  if (auth.loading) {
+    return (
+      <div className={`h-screen w-screen ${currentTheme.background} ${currentTheme.text} font-mono text-xs sm:text-sm overflow-hidden fixed inset-0 flex items-center justify-center`}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
+
   if (auth.showAuthModal) {
     return <AuthModal onAuthSuccess={auth.handleAuthSuccess} onCancel={() => auth.setShowAuthModal(false)} />;
   }

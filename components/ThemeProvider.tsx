@@ -82,18 +82,35 @@ export const themes = {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('classic');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('irc-theme') as Theme;
     if (savedTheme && savedTheme in themes) {
       setTheme(savedTheme);
     }
+    setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const themeClasses = {
+      classic: 'bg-black text-green-400',
+      'dark-white': 'bg-zinc-900 text-gray-200',
+      light: 'bg-gray-300 text-gray-900'
+    };
+    
+    document.documentElement.className = themeClasses[theme];
+  }, [theme]);
 
   const handleSetTheme = (newTheme: Theme) => {
     setTheme(newTheme);
     localStorage.setItem('irc-theme', newTheme);
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme }}>

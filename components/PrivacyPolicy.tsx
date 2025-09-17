@@ -4,9 +4,10 @@ import { useTheme, themes } from './ThemeProvider';
 
 interface PrivacyPolicyProps {
   onClose: () => void;
+  onBack: () => void;
 }
 
-export default function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
+export default function PrivacyPolicy({ onClose, onBack }: PrivacyPolicyProps) {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
 
@@ -28,6 +29,13 @@ export default function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
               [CLOSE]
             </button>
           </div>
+
+          <button
+            onClick={onBack}
+            className={`${currentTheme.accent} ${currentTheme.button} mb-4`}
+          >
+            ← BACK
+          </button>
 
           <div className="space-y-6">
             <section>

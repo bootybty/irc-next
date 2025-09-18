@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { useTheme, themes } from '@/components/ThemeProvider';
 
 interface User {
@@ -26,6 +26,7 @@ export const useUsers = (
 ) => {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
+  const [displayedUserCount, setDisplayedUserCount] = useState(75);
   const getRoleColor = useCallback((member: ChannelMember) => {
     if (member.channel_role) {
       return member.channel_role.color;
@@ -59,7 +60,7 @@ export const useUsers = (
     return currentTheme.roleDefault;
   }, [channelMembers, getRoleColor, currentTheme.roleDefault]);
 
-  const displayUsers = useMemo(() => {
+  const allUsers = useMemo(() => {
     // Get all subscribed members
     const subscribedMembers = channelMembers.filter(m => m.is_subscribed);
     
@@ -107,8 +108,23 @@ export const useUsers = (
     });
   }, [users, channelMembers, getUserListColor, currentTheme.muted]);
 
+  const displayUsers = useMemo(() => {
+    return allUsers.slice(0, displayedUserCount);
+  }, [allUsers, displayedUserCount]);
+
+  const loadMoreUsers = useCallback(() => {
+    setDisplayedUserCount(prev => Math.min(prev + 50, allUsers.length));
+  }, [allUsers.length]);
+
+  const hasMoreUsers = displayedUserCount < allUsers.length;
+
   return {
     displayUsers,
+    allUsers,
+    loadMoreUsers,
+    hasMoreUsers,
+    totalUserCount: allUsers.length,
+    displayedUserCount,
     getUserRoleColor,
     getRoleColor,
     getUserListColor

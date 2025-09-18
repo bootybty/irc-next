@@ -514,10 +514,10 @@ function HomeContent() {
                 maxHeight: 'calc(100vh - 120px)' // Account for header and footer
               }}>
               <div className="ml-2">
-                {channel.categories.length === 0 ? (
+                {channel.getDisplayCategories().length === 0 ? (
                   <div className={`${currentTheme.muted} italic`}>No categories available</div>
                 ) : (
-                  channel.categories.map(category => {
+                  channel.getDisplayCategories().map(category => {
                     if (category.id === 'universal') {
                       return category.channels?.map(ch => (
                         <div 
@@ -643,6 +643,17 @@ function HomeContent() {
                     );
                   })
                 )}
+                {/* Load More Channels Button */}
+                {channel.hasMoreChannels && (
+                  <div className="mt-4 px-2">
+                    <button 
+                      onClick={channel.loadMoreChannels}
+                      className={`w-full text-center py-2 ${currentTheme.accent} ${currentTheme.button} text-xs select-none`}
+                    >
+                      LOAD MORE ({channel.totalChannelCount - channel.displayedChannelCount} remaining)
+                    </button>
+                  </div>
+                )}
               </div>
               </div>
             </div>
@@ -672,10 +683,10 @@ function HomeContent() {
             maxHeight: 'calc(100vh - 120px)' // Account for header and footer
           }}>
             <div className="ml-2">
-              {channel.categories.length === 0 ? (
+              {channel.getDisplayCategories().length === 0 ? (
                 <div className={`${currentTheme.muted} italic`}>No categories available</div>
               ) : (
-                channel.categories.map(category => {
+                channel.getDisplayCategories().map(category => {
                   if (category.id === 'universal') {
                     return category.channels?.map(ch => (
                       <div 
@@ -787,6 +798,17 @@ function HomeContent() {
                   );
                 })
               )}
+              {/* Load More Channels Button */}
+              {channel.hasMoreChannels && (
+                <div className="mt-4 px-2">
+                  <button 
+                    onClick={channel.loadMoreChannels}
+                    className={`w-full text-center py-2 ${currentTheme.accent} ${currentTheme.button} text-xs select-none`}
+                  >
+                    LOAD MORE ({channel.totalChannelCount - channel.displayedChannelCount} remaining)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -850,9 +872,6 @@ function HomeContent() {
                 </div>
               )}
               
-              {!auth.authUser && (
-                <div className={currentTheme.highlight}>*** YOU ARE LURKING - LOGIN TO PARTICIPATE ***</div>
-              )}
               {[...chat.messages, ...chat.localMessages].sort((a, b) => 
                 new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
               ).map(message => {
@@ -990,7 +1009,7 @@ function HomeContent() {
             <div className={`w-48 h-full ${currentTheme.background} border-l ${currentTheme.border} ml-auto flex flex-col`} onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center p-4 border-b border-gray-600 flex-shrink-0">
                 <div className={`${currentTheme.accent} select-none`}>
-                  USERS ({users.displayUsers.length}):
+                  USERS ({users.totalUserCount}):
                 </div>
                 <button onClick={() => ui.setShowUsers(false)} className={`${currentTheme.error} select-none`}>[X]</button>
               </div>
@@ -1012,6 +1031,16 @@ function HomeContent() {
                           </div>
                         );
                       })}
+                      {users.hasMoreUsers && (
+                        <div className="pt-2">
+                          <button 
+                            onClick={users.loadMoreUsers}
+                            className={`w-full text-center py-2 ${currentTheme.accent} ${currentTheme.button} text-xs select-none`}
+                          >
+                            LOAD MORE ({users.totalUserCount - users.displayedUserCount} remaining)
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </>
                 );
@@ -1025,7 +1054,7 @@ function HomeContent() {
         <div className={`hidden lg:block w-64 lg:w-72 border-l ${currentTheme.border} flex-shrink-0 flex flex-col`}>
           {/* User Header */}
           <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
-            <div className={`${currentTheme.accent} text-center select-none`}>[ USERS ({users.displayUsers.length}) ]</div>
+            <div className={`${currentTheme.accent} text-center select-none`}>[ USERS ({users.totalUserCount}) ]</div>
           </div>
           {/* User List */}
           <div className="flex-1 p-4 overflow-auto user-list" style={{
@@ -1046,6 +1075,16 @@ function HomeContent() {
                       </div>
                     );
                   })}
+                  {users.hasMoreUsers && (
+                    <div className="pt-2">
+                      <button 
+                        onClick={users.loadMoreUsers}
+                        className={`w-full text-center py-2 ${currentTheme.accent} ${currentTheme.button} text-xs select-none`}
+                      >
+                        LOAD MORE ({users.totalUserCount - users.displayedUserCount} remaining)
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             );

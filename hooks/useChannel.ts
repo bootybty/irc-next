@@ -29,6 +29,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   const [lastRefresh, setLastRefresh] = useState<number>(0);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [userSubscriptions, setUserSubscriptions] = useState<Record<string, boolean>>({});
+  const [displayedChannelCount, setDisplayedChannelCount] = useState(75);
 
 
   const fetchUserSubscriptions = useCallback(async () => {
@@ -746,6 +747,52 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     return userSubscriptions[channelId] || false;
   }, [userId, userSubscriptions]);
 
+  // Channel pagination functions
+  const getAllChannels = useCallback(() => {
+    const allChannels = [];
+    for (const category of categories) {
+      if (category.channels) {
+        allChannels.push(...category.channels);
+      }
+    }
+    return allChannels;
+  }, [categories]);
+
+  const loadMoreChannels = useCallback(() => {
+    const totalChannels = getAllChannels().length;
+    setDisplayedChannelCount(prev => Math.min(prev + 50, totalChannels));
+  }, [getAllChannels]);
+
+  const hasMoreChannels = displayedChannelCount < getAllChannels().length;
+
+  const getDisplayCategories = useCallback(() => {
+    let channelsSoFar = 0;
+    const displayCategories = [];
+    
+    for (const category of categories) {
+      if (!category.channels || category.channels.length === 0) {
+        displayCategories.push(category);
+        continue;
+      }
+      
+      const remainingSlots = displayedChannelCount - channelsSoFar;
+      if (remainingSlots <= 0) break;
+      
+      const channelsToShow = Math.min(category.channels.length, remainingSlots);
+      const displayCategory = {
+        ...category,
+        channels: category.channels.slice(0, channelsToShow)
+      };
+      
+      displayCategories.push(displayCategory);
+      channelsSoFar += channelsToShow;
+      
+      if (channelsSoFar >= displayedChannelCount) break;
+    }
+    
+    return displayCategories;
+  }, [categories, displayedChannelCount]);
+
 
   useEffect(() => {
     const urlChannelName = window.location.hash.slice(1) || '';
@@ -864,6 +911,12 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     getRoleColor,
     subscribeToChannel,
     unsubscribeFromChannel,
-    isUserSubscribed
+    isUserSubscribed,
+    // Channel pagination
+    displayedChannelCount,
+    loadMoreChannels,
+    hasMoreChannels,
+    getDisplayCategories,
+    totalChannelCount: getAllChannels().length
   };
 };

@@ -8,7 +8,7 @@ interface CreateChannelModalProps {
   categoryId?: string;
   categories: Array<{ id: string; name: string; emoji: string }>;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (channelId?: string) => void;
 }
 
 export default function CreateChannelModal({ 
@@ -175,12 +175,12 @@ export default function CreateChannelModal({
       }
 
       // Add creator as Owner in channel_members (check if already exists first)
-      const { data: existingMember } = await supabase
+      const { data: existingMember, error: memberCheckError } = await supabase
         .from('channel_members')
         .select('id')
         .eq('channel_id', channelId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!existingMember) {
         const { error: memberError } = await supabase
@@ -200,6 +200,21 @@ export default function CreateChannelModal({
           ]);
 
         if (memberError) throw memberError;
+      } else {
+        // Update existing member to be subscribed and active
+        const { error: updateError } = await supabase
+          .from('channel_members')
+          .update({
+            role: 'owner',
+            channel_role_id: ownerRoleId,
+            is_subscribed: true,
+            is_active: true,
+            last_activity: new Date().toISOString(),
+            last_seen: new Date().toISOString()
+          })
+          .eq('id', existingMember.id);
+
+        if (updateError) throw updateError;
       }
 
       // Show success message briefly before closing
@@ -207,7 +222,7 @@ export default function CreateChannelModal({
       setLoading(false);
       
       setTimeout(() => {
-        onSuccess();
+        onSuccess(channelId);
         onClose();
       }, 1500);
     } catch (error: unknown) {

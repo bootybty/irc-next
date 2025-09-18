@@ -74,9 +74,9 @@ export default function ChannelInfo({
             joinStatus === 'success' ? currentTheme.success : currentTheme.error
           }`}>
             *** {
-              joinStatus === 'joining' ? `JOINING #${joiningChannelName.toUpperCase()}...` :
-              joinStatus === 'success' ? `JOINED #${joiningChannelName.toUpperCase()} SUCCESSFULLY` :
-              `FAILED TO JOIN #${joiningChannelName.toUpperCase()}`
+              joinStatus === 'joining' ? `CONNECTING TO #${joiningChannelName.toUpperCase()}...` :
+              joinStatus === 'success' ? `CONNECTED TO #${joiningChannelName.toUpperCase()} SUCCESSFULLY` :
+              `FAILED TO CONNECT TO #${joiningChannelName.toUpperCase()}`
             } ***
           </div>
         )}

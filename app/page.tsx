@@ -399,8 +399,13 @@ function HomeContent() {
     commands.updateCommandSuggestions(value);
   };
 
-  const handleCreationSuccess = () => {
-    channel.fetchCategoriesAndChannels();
+  const handleCreationSuccess = async (channelId?: string) => {
+    await channel.fetchInitialData();
+    
+    // If a new channel was created, switch to it
+    if (channelId) {
+      await handleChannelSwitch(channelId);
+    }
   };
 
   if (auth.loading) {

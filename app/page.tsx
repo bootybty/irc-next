@@ -16,11 +16,13 @@ import { useChat } from '@/hooks/useChat';
 import { useCommands } from '@/hooks/useCommands';
 import { useUsers } from '@/hooks/useUsers';
 import { useUI } from '@/hooks/useUI';
+import { NotificationProvider, useNotification } from '@/contexts/NotificationContext';
 
 function HomeContent() {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
   const auth = useAuth();
+  const { notification } = useNotification();
   const ui = useUI();
   const [showPrivacyCenter, setShowPrivacyCenter] = useState(false);
   
@@ -436,6 +438,15 @@ function HomeContent() {
                   [+CH]
                 </button>
               </>
+            )}
+          </div>
+          
+          {/* Center notification */}
+          <div className="flex-1 text-center">
+            {notification && (
+              <span className={`${currentTheme.accent} font-mono select-none`}>
+                {notification}
+              </span>
             )}
           </div>
           
@@ -1177,8 +1188,10 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="h-screen bg-black text-green-400 flex items-center justify-center">Loading...</div>}>
-      <HomeContent />
-    </Suspense>
+    <NotificationProvider>
+      <Suspense fallback={<div className="h-screen bg-black text-green-400 flex items-center justify-center">Loading...</div>}>
+        <HomeContent />
+      </Suspense>
+    </NotificationProvider>
   );
 }

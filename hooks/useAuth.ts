@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useNotification } from '@/contexts/NotificationContext';
 
 interface AuthUser {
   id: string;
@@ -13,6 +14,7 @@ export const useAuth = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -69,12 +71,18 @@ export const useAuth = () => {
               setUsername(profile.username);
               setUserId(session.user.id);
               setShowAuthModal(false);
+              
+              // Show login success notification
+              showNotification(`SUCCESSFULLY LOGGED IN AS ${profile.username.toUpperCase()}`);
             }
           });
       } else if (event === 'SIGNED_OUT') {
         setAuthUser(null);
         setUsername('');
         setUserId('');
+        
+        // Show logout notification
+        showNotification('SUCCESSFULLY LOGGED OUT');
       }
     });
 
@@ -88,6 +96,9 @@ export const useAuth = () => {
     setUsername(user.username);
     setUserId(user.id);
     setShowAuthModal(false);
+    
+    // Show login success notification
+    showNotification(`SUCCESSFULLY LOGGED IN AS ${user.username.toUpperCase()}`);
   };
 
   const handleLogout = async () => {
@@ -95,7 +106,7 @@ export const useAuth = () => {
     setAuthUser(null);
     setUsername('');
     setUserId('');
-    setShowAuthModal(true);
+    // Don't show auth modal automatically - let user stay on page
   };
 
   return {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useTheme, themes } from '@/components/ThemeProvider';
+import { useNotification } from '@/contexts/NotificationContext';
 import type { ChannelCategory, ChannelRole } from '@/lib/supabase';
 import type { AuthUser, ChannelMember } from '@/types';
 
@@ -11,6 +12,7 @@ const UNIVERSAL_CHANNELS = ['global', 'general', 'random', 'tech', 'gaming', 'mu
 export const useChannel = (userId: string, username: string, authUser: AuthUser | null) => {
   const { theme } = useTheme();
   const currentTheme = themes[theme];
+  const { showNotification } = useNotification();
   const searchParams = useSearchParams();
   const [currentChannel, setCurrentChannel] = useState('');
   const [categories, setCategories] = useState<ChannelCategory[]>([]);
@@ -552,13 +554,19 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       // Update local subscription state
       setUserSubscriptions(prev => ({ ...prev, [channelId]: true }));
       
+      // Get channel name for notification
+      const channelName = categories.flatMap(cat => cat.channels || [])
+        .find(ch => ch.id === channelId)?.name || 'UNKNOWN';
+      
+      showNotification(`SUCCESSFULLY JOINED #${channelName.toUpperCase()}`);
+      
       await fetchChannelMembers(channelId);
       return { success: true };
     } catch (error) {
       console.error('Error subscribing to channel:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
-  }, [authUser, userId, username, fetchChannelMembers]);
+  }, [authUser, userId, username, fetchChannelMembers, categories, showNotification]);
 
   const unsubscribeFromChannel = useCallback(async (channelId: string) => {
     if (!authUser || !userId) return { success: false, error: 'Not authenticated' };
@@ -579,13 +587,19 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       // Update local subscription state
       setUserSubscriptions(prev => ({ ...prev, [channelId]: false }));
 
+      // Get channel name for notification
+      const channelName = categories.flatMap(cat => cat.channels || [])
+        .find(ch => ch.id === channelId)?.name || 'UNKNOWN';
+      
+      showNotification(`SUCCESSFULLY LEFT #${channelName.toUpperCase()}`);
+
       await fetchChannelMembers(channelId);
       return { success: true };
     } catch (error) {
       console.error('Error unsubscribing from channel:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
-  }, [authUser, userId, fetchChannelMembers]);
+  }, [authUser, userId, fetchChannelMembers, categories, showNotification]);
 
   const joinChannelAsMember = useCallback(async (channelId: string) => {
     if (!authUser || !userId) return;

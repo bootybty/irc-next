@@ -694,7 +694,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
           if (channelName && UNIVERSAL_CHANNELS.includes(channelName)) {
             setCurrentMotd(''); // No MOTD for universal channels
           } else {
-            setCurrentMotd('WELCOME TO THE RETRO IRC EXPERIENCE');
+            setCurrentMotd('');
           }
         }
         

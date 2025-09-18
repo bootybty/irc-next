@@ -192,6 +192,10 @@ export default function CreateChannelModal({
               username: profile.username,
               role: 'owner', // Legacy field
               channel_role_id: ownerRoleId,
+              is_subscribed: true,
+              is_active: true,
+              last_activity: new Date().toISOString(),
+              last_seen: new Date().toISOString()
             },
           ]);
 

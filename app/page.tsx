@@ -50,6 +50,7 @@ function HomeContent() {
     chat.setMessages,
     chat.setLocalMessages,
     channel.setCurrentTopic,
+    channel.setCurrentMotd,
     channel.fetchChannelMembers,
     chat.channel
   );

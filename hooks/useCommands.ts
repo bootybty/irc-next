@@ -32,6 +32,7 @@ export const useCommands = (
   setMessages: MessageSetter,
   setLocalMessages: MessageSetter,
   setCurrentTopic: (topic: string) => void,
+  setCurrentMotd: (motd: string) => void,
   fetchChannelMembers: (channelId: string) => void,
   channel: RealtimeChannel | null
 ) => {
@@ -485,6 +486,8 @@ export const useCommands = (
           };
           setMessages(prev => [...prev, errorMsg]);
         } else {
+          setCurrentMotd(newMotd);
+          
           const successMsg = {
             id: `success_${Date.now()}`,
             username: 'SYSTEM',
@@ -1201,6 +1204,13 @@ export const useCommands = (
           setSelectedSuggestion(0);
           return;
         }
+      }
+      
+      // For commands that take free text (topic, motd), don't show suggestions when typing arguments
+      const freeTextCommands = ['topic', 'motd'];
+      if (freeTextCommands.includes(command) && parts.length >= 2) {
+        setShowCommandSuggestions(false);
+        return;
       }
       
       // Show matching command with description when typing arguments

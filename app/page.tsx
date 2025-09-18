@@ -513,7 +513,7 @@ function HomeContent() {
             <div className={`w-64 h-full ${currentTheme.background} border-r ${currentTheme.border} flex flex-col`} onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center p-4 border-b border-gray-600 flex-shrink-0">
                 <div className="w-10"></div>
-                <div className={`${currentTheme.accent} text-center select-none`}>[ CHANNELS ]</div>
+                <div className={`${currentTheme.accent} text-center select-none`}>[ CHANNELS ({channel.totalChannelCount}) ]</div>
                 <div className="flex gap-2 w-10">
                   <button 
                     onClick={() => channel.refreshChannels()}
@@ -683,7 +683,7 @@ function HomeContent() {
           <div className={`border-b ${currentTheme.border} p-2 flex-shrink-0`}>
             <div className="flex justify-between items-center">
               <div className="w-6"></div>
-              <div className={`${currentTheme.accent} text-center select-none`}>[ CHANNELS ]</div>
+              <div className={`${currentTheme.accent} text-center select-none`}>[ CHANNELS ({channel.totalChannelCount}) ]</div>
               <button 
                 onClick={() => channel.refreshChannels()}
                 className={`${currentTheme.accent} ${currentTheme.button} text-xs w-6`}

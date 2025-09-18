@@ -28,7 +28,25 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<number>(0);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
+  const [userSubscriptions, setUserSubscriptions] = useState<Record<string, boolean>>({});
 
+
+  const fetchUserSubscriptions = useCallback(async () => {
+    if (!userId) return;
+    
+    const { data: subscriptions } = await supabase
+      .from('channel_members')
+      .select('channel_id, is_subscribed')
+      .eq('user_id', userId);
+    
+    if (subscriptions) {
+      const subscriptionMap: Record<string, boolean> = {};
+      subscriptions.forEach(sub => {
+        subscriptionMap[sub.channel_id] = sub.is_subscribed || false;
+      });
+      setUserSubscriptions(subscriptionMap);
+    }
+  }, [userId]);
 
   const fetchUnreadMentions = useCallback(async () => {
     if (!userId) return;
@@ -107,7 +125,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     setIsInitialLoading(true);
     
     // Batch multiple queries together to reduce API calls
-    const [categoriesResult, uncategorizedResult, universalChannelsResult, membershipsResult, mentionsResult] = await Promise.all([
+    const [categoriesResult, uncategorizedResult, universalChannelsResult, membershipsResult, mentionsResult, subscriptionsResult] = await Promise.all([
       // Categories with channels
       supabase
         .from('channel_categories')
@@ -150,7 +168,13 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         .from('mentions')
         .select('channel_id')
         .eq('mentioned_user_id', userId)
-        .eq('is_read', false)
+        .eq('is_read', false),
+      
+      // User's channel subscriptions
+      supabase
+        .from('channel_members')
+        .select('channel_id, is_subscribed')
+        .eq('user_id', userId)
     ]);
 
     // Process categories and channels
@@ -210,6 +234,15 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         mentionCounts[mention.channel_id] = (mentionCounts[mention.channel_id] || 0) + 1;
       });
       setUnreadMentions(mentionCounts);
+    }
+
+    // Process user subscriptions
+    if (subscriptionsResult.data) {
+      const subscriptionMap: Record<string, boolean> = {};
+      subscriptionsResult.data.forEach(sub => {
+        subscriptionMap[sub.channel_id] = sub.is_subscribed || false;
+      });
+      setUserSubscriptions(subscriptionMap);
     }
 
     // Process unread counts
@@ -385,7 +418,10 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     setLastRefresh(now);
     
     try {
-      await fetchCategoriesAndChannels();
+      await Promise.all([
+        fetchCategoriesAndChannels(),
+        fetchUserSubscriptions()
+      ]);
       // Show success feedback for 2 seconds
       setTimeout(() => setIsRefreshing(false), 2000);
     } catch (error) {
@@ -407,15 +443,39 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
 
     const { data: members } = await supabase
       .from('channel_members')
-      .select(`
-        *,
-        channel_role:channel_roles(*)
-      `)
+      .select('*')
       .eq('channel_id', channelId)
       .eq('is_subscribed', true);
 
     if (members) {
-      setChannelMembers(members);
+      // Fetch custom role data for members who have one
+      const membersWithCustomRoles = members.filter(m => m.channel_role_id);
+      if (membersWithCustomRoles.length > 0) {
+        const roleIds = membersWithCustomRoles.map(m => m.channel_role_id);
+        const { data: customRoles } = await supabase
+          .from('channel_roles')
+          .select('id, name, color, permissions')
+          .in('id', roleIds);
+        
+        if (customRoles) {
+          // Add custom role data to members
+          const enrichedMembers = members.map(member => {
+            if (member.channel_role_id) {
+              const customRole = customRoles.find(r => r.id === member.channel_role_id);
+              return {
+                ...member,
+                channel_role: customRole
+              };
+            }
+            return member;
+          });
+          setChannelMembers(enrichedMembers);
+        } else {
+          setChannelMembers(members);
+        }
+      } else {
+        setChannelMembers(members);
+      }
 
       if (authUser && userId) {
         const currentUserMember = members.find(m => m.user_id === userId);
@@ -465,7 +525,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
             user_id: userId,
             username: username,
             role: 'member',
-            role_id: memberRole?.id,
+            channel_role_id: memberRole?.id,
             is_subscribed: true,
             is_active: true,
             last_activity: new Date().toISOString(),
@@ -488,6 +548,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         if (error) throw error;
       }
 
+      // Update local subscription state
+      setUserSubscriptions(prev => ({ ...prev, [channelId]: true }));
+      
       await fetchChannelMembers(channelId);
       return { success: true };
     } catch (error) {
@@ -511,6 +574,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         .eq('user_id', userId);
 
       if (error) throw error;
+
+      // Update local subscription state
+      setUserSubscriptions(prev => ({ ...prev, [channelId]: false }));
 
       await fetchChannelMembers(channelId);
       return { success: true };
@@ -677,9 +743,8 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
 
   const isUserSubscribed = useCallback((channelId: string) => {
     if (!userId) return false;
-    const member = channelMembers.find(m => m.user_id === userId && m.channel_id === channelId);
-    return member?.is_subscribed || false;
-  }, [userId, channelMembers]);
+    return userSubscriptions[channelId] || false;
+  }, [userId, userSubscriptions]);
 
 
   useEffect(() => {

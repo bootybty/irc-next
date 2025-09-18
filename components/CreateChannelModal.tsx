@@ -191,7 +191,7 @@ export default function CreateChannelModal({
               user_id: user.id,
               username: profile.username,
               role: 'owner', // Legacy field
-              role_id: ownerRoleId,
+              channel_role_id: ownerRoleId,
             },
           ]);
 

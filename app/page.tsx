@@ -219,7 +219,7 @@ function HomeContent() {
           }
         }
         // Handle user/role suggestions for user commands
-        else if (['ban', 'setrole', 'mod', 'unmod'].includes(currentCommand) && parts.length >= 2) {
+        else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole'].includes(currentCommand) && parts.length >= 2) {
           // Replace the current incomplete argument with the selected suggestion
           const newParts = [...parts];
           newParts[parts.length - 1] = selectedCommand.command;
@@ -317,7 +317,7 @@ function HomeContent() {
             }
           }
           // Handle user/role suggestions for user commands
-          else if (['ban', 'setrole', 'mod', 'unmod'].includes(currentCommand) && parts.length >= 2) {
+          else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole'].includes(currentCommand) && parts.length >= 2) {
             // Replace the current incomplete argument with the selected suggestion
             const newParts = [...parts];
             newParts[parts.length - 1] = selectedCommand.command;
@@ -376,7 +376,7 @@ function HomeContent() {
       }
     }
     // Handle user/role suggestions for user commands
-    else if (['ban', 'setrole', 'mod', 'unmod'].includes(currentCommand) && parts.length >= 2) {
+    else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole'].includes(currentCommand) && parts.length >= 2) {
       // Replace the current incomplete argument with the selected suggestion
       const newParts = [...parts];
       newParts[parts.length - 1] = selectedCommand.command;

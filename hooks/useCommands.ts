@@ -302,7 +302,7 @@ export const useCommands = (
       const helpMsg = {
         id: `help_${Date.now()}`,
         username: 'SYSTEM',
-        content: 'Available commands: /ban <user> [reason], /mod <user>, /unmod <user>, /topic <message>, /motd <message>, /delete, /info, /roles, /setrole, /createrole',
+        content: 'Available commands: /ban <user> [reason], /mod <user>, /unmod <user>, /topic <message>, /motd <message>, /delete, /info, /roles, /setrole, /createrole, /deleterole',
         timestamp: new Date(),
         channel: currentChannel
       };
@@ -423,7 +423,7 @@ export const useCommands = (
         const rolesMsg = {
           id: `roles_${Date.now()}`,
           username: 'SYSTEM',
-          content: `Channel roles: ${allRoles.join(', ')}${customRoles.length > 0 ? ` (${customRoles.length} custom)` : ''}`,
+          content: `Roles in this channel: ${allRoles.join(', ')}${customRoles.length > 0 ? ` (${customRoles.length} custom)` : ''}`,
           timestamp: new Date(),
           channel: currentChannel
         };
@@ -634,7 +634,8 @@ export const useCommands = (
           .insert({
             channel_id: currentChannel,
             name: roleName,
-            color: finalColor
+            color: finalColor,
+            created_by: userId
           });
 
         if (rolesError) {
@@ -672,6 +673,172 @@ export const useCommands = (
           id: `error_${Date.now()}`,
           username: 'SYSTEM',
           content: `Error creating role: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      }
+      
+      return true;
+    }
+
+    if (command === 'deleterole') {
+      const canDeleteRole = userRole === 'owner' || userRole === 'Owner';
+      if (!canDeleteRole) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: 'Access denied. You need owner privileges to delete roles.',
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
+
+      const roleName = args[0];
+
+      if (!roleName) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: 'Usage: /deleterole <name> - Example: /deleterole VIP',
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
+
+      // Check if role is a reserved system role
+      const reservedRoles = ['owner', 'moderator', 'member'];
+      if (reservedRoles.includes(roleName.toLowerCase())) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Cannot delete system role '${roleName}'. Only custom roles can be deleted.`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
+
+      // Find the role to delete
+      const roleToDelete = channelRoles.find(role => 
+        role.name.toLowerCase() === roleName.toLowerCase()
+      );
+      
+      if (!roleToDelete) {
+        const customRoles = channelRoles.filter(role => 
+          !['owner', 'moderator', 'member'].includes(role.name.toLowerCase())
+        );
+        
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Role '${roleName}' not found. ${customRoles.length > 0 ? `Available custom roles: ${customRoles.map(r => r.name).join(', ')}` : 'No custom roles available. Create one with /createrole first.'}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return true;
+      }
+
+      try {
+        // First, check if channel_role_id column exists, if not skip member updates
+        let membersWithRole = [];
+        let updateSuccessful = false;
+        try {
+          // Try to find members with this role using the join approach
+          const { data: membersData } = await supabase
+            .from('channel_members')
+            .select(`
+              *,
+              channel_role:channel_roles(*)
+            `)
+            .eq('channel_id', currentChannel);
+          
+          if (membersData) {
+            membersWithRole = membersData.filter(member => 
+              member.channel_role && member.channel_role.id === roleToDelete.id
+            );
+          }
+        } catch (joinError) {
+          console.log('Join query failed, attempting direct column approach');
+        }
+
+        // Update members with this role back to default member role
+        if (membersWithRole.length > 0) {
+          console.log('Found members with role, updating them:', membersWithRole.map(m => m.username));
+          
+          // Try the direct column approach if it exists
+          try {
+            const { error: membersUpdateError } = await supabase
+              .from('channel_members')
+              .update({ 
+                channel_role_id: null,
+                role: 'member'
+              })
+              .eq('channel_id', currentChannel)
+              .eq('channel_role_id', roleToDelete.id);
+
+            if (membersUpdateError) {
+              console.error('Direct column update failed:', membersUpdateError);
+              // If direct approach fails, update each member individually
+              for (const member of membersWithRole) {
+                await supabase
+                  .from('channel_members')
+                  .update({ role: 'member' })
+                  .eq('channel_id', currentChannel)
+                  .eq('user_id', member.user_id);
+              }
+              updateSuccessful = true;
+            } else {
+              updateSuccessful = true;
+            }
+          } catch (directError) {
+            console.log('Direct column approach failed, updating members individually');
+            // Update each member individually without using channel_role_id
+            for (const member of membersWithRole) {
+              await supabase
+                .from('channel_members')
+                .update({ role: 'member' })
+                .eq('channel_id', currentChannel)
+                .eq('user_id', member.user_id);
+            }
+            updateSuccessful = true;
+          }
+        }
+
+        // Then delete the role
+        const { error: roleDeleteError } = await supabase
+          .from('channel_roles')
+          .delete()
+          .eq('id', roleToDelete.id)
+          .eq('channel_id', currentChannel);
+
+        if (roleDeleteError) {
+          throw roleDeleteError;
+        }
+
+        // Refresh channel data to update state
+        await fetchChannelMembers(currentChannel);
+        
+        const successMsg = {
+          id: `success_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Role '${roleName}' has been deleted from this channel.${membersWithRole.length > 0 && updateSuccessful ? ` ${membersWithRole.length} member(s) with this role have been reverted to member status.` : membersWithRole.length > 0 ? ' Note: Some members may still show the old role until they reconnect.' : ''}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, successMsg]);
+
+      } catch (error) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `Error deleting role: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
           timestamp: new Date(),
           channel: currentChannel
         };
@@ -836,6 +1003,7 @@ export const useCommands = (
       { command: 'ban <user> [reason]', description: 'Ban user from channel', requiresPermission: 'can_ban' },
       { command: 'setrole <user> <role>', description: 'Assign role to user', requiresPermission: 'can_manage_roles' },
       { command: 'createrole <name> [color]', description: 'Create new custom role', requiresRole: 'Owner' },
+      { command: 'deleterole <name>', description: 'Delete custom role', requiresRole: 'Owner' },
       { command: 'delete', description: 'Delete current channel (PERMANENT)', requiresRole: 'Owner' },
     ];
 
@@ -928,6 +1096,31 @@ export const useCommands = (
       setShowCommandSuggestions(filteredColors.length > 0);
       setSelectedSuggestion(0);
       return;
+    }
+
+    // Handle role suggestions for deleterole command
+    if (command === 'deleterole' && parts.length === 2) {
+      const roleInput = parts[1].toLowerCase();
+      // Only show custom roles (not system roles)
+      const reservedRoles = ['owner', 'moderator', 'member'];
+      const customRoles = channelRoles
+        .filter(role => !reservedRoles.includes(role.name.toLowerCase()))
+        .map(role => role.name);
+      
+      const roleSuggestions = customRoles
+        .filter(role => role.toLowerCase().startsWith(roleInput))
+        .map(role => ({
+          command: role,
+          description: `Delete custom role: ${role}`,
+          isRole: true
+        }));
+      
+      if (roleSuggestions.length > 0) {
+        setCommandSuggestions(roleSuggestions);
+        setShowCommandSuggestions(true);
+        setSelectedSuggestion(0);
+        return;
+      }
     }
     
     if (commandPart === '') {

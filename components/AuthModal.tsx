@@ -148,7 +148,7 @@ export default function AuthModal({ onAuthSuccess, onCancel }: AuthModalProps) {
                   user_id: data.user.id,
                   username: profile.username,
                   role: 'member',
-                  role_id: memberRole?.id,
+                  channel_role_id: memberRole?.id,
                   is_subscribed: true,
                   is_active: true,
                   last_activity: new Date().toISOString(),

@@ -434,6 +434,19 @@ export const useChat = (
   ) => {
     if (channel && content.trim() && authUser) {
       const trimmedInput = content.trim();
+      
+      // Input length validation (5000 character limit)
+      if (trimmedInput.length > 5000) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: 'ERROR: Message exceeds maximum length of 5000 characters',
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return false;
+      }
 
       if (trimmedInput.startsWith('/')) {
         const parts = trimmedInput.slice(1).split(' ');
@@ -513,12 +526,17 @@ export const useChat = (
   };
 
   const loadChannelMessages = useCallback(async (channelId: string) => {
+    // Dynamic message limit based on viewport height
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const estimatedMessagesVisible = Math.ceil(viewportHeight / 30); // Assuming ~30px per message
+    const messageLimit = Math.min(Math.max(estimatedMessagesVisible * 2, 30), 100); // Between 30-100 messages
+    
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('channel_id', channelId)
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(messageLimit);
 
     if (error) {
       return;
@@ -535,8 +553,8 @@ export const useChat = (
       }));
       
       setMessages(messages);
-      // If we got 100 messages, there might be more
-      setHasMoreMessages(data.length === 100);
+      // If we got max messages, there might be more
+      setHasMoreMessages(data.length === messageLimit);
       
       // Auto-scroll to bottom on first load
       if (!loadedChannels.has(channelId)) {

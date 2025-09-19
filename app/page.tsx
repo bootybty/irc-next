@@ -17,6 +17,7 @@ import { useCommands } from '@/hooks/useCommands';
 import { useUsers } from '@/hooks/useUsers';
 import { useUI } from '@/hooks/useUI';
 import { NotificationProvider, useNotification } from '@/contexts/NotificationContext';
+import { sanitizeMessage } from '@/lib/sanitize';
 
 function HomeContent() {
   const { theme } = useTheme();
@@ -58,8 +59,11 @@ function HomeContent() {
   const users = useUsers(chat.users, channel.channelMembers);
 
   const formatMessageContent = (content: string) => {
+    // Sanitize content first to prevent XSS
+    const safeContent = sanitizeMessage(content);
+    
     const mentionRegex = /@(\w+)/g;
-    const parts = content.split(mentionRegex);
+    const parts = safeContent.split(mentionRegex);
     
     return parts.map((part, index) => {
       if (index % 2 === 1) {
@@ -133,6 +137,20 @@ function HomeContent() {
   const sendMessage = async () => {
     if (chat.channel && ui.inputMessage.trim() && auth.authUser) {
       const trimmedInput = ui.inputMessage.trim();
+      
+      // Input length validation (5000 character limit)
+      if (trimmedInput.length > 5000) {
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: 'ERROR: Message exceeds maximum length of 5000 characters',
+          timestamp: new Date(),
+          channel: channel.currentChannel
+        };
+        chat.setLocalMessages(prev => [...prev, errorMsg]);
+        ui.clearInput();
+        return;
+      }
 
       // Check if user is subscribed to the channel (has membership)
       const isSubscribed = channel.isUserSubscribed(channel.currentChannel);

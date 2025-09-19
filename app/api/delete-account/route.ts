@@ -1,31 +1,33 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/auth';
+import { strictRateLimit } from '@/lib/rateLimit';
+import { logger } from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpZ3JkaHpsaHZ2aWdrYmpsbWZpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Nzk3Njc5NiwiZXhwIjoyMDczNTUyNzk2fQ.anCD0HXfXtE5QilmLvVeN9U7AmnYesvI-Y5p95RLBZ8';
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting
+  return strictRateLimit(request, async () => {
   
   try {
+    // Get service key from environment
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseServiceKey) {
+      logger.error('SUPABASE_SERVICE_ROLE_KEY not found in environment');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
     // Create service role client
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get the authorization header
-    const authHeader = request.headers.get('authorization');
+    // Verify authentication using shared auth helper
+    const { user, error: authError } = await verifyAuth(request);
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Missing or invalid authorization header' }, { status: 401 });
-    }
-
-    // Extract the token and verify the user
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Invalid token or user not found' }, { status: 401 });
+    if (authError || !user) {
+      logger.warn('Delete account: Authentication failed', { error: authError });
+      return NextResponse.json({ error: authError || 'Unauthorized' }, { status: 401 });
     }
 
 
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
 
 
     if (deleteError) {
-      console.error('Delete error:', deleteError);
+      logger.error('Delete user data failed', deleteError, { userId: user.id });
       return NextResponse.json({ error: 'Failed to delete user data', details: deleteError }, { status: 500 });
     }
 
@@ -48,17 +50,19 @@ export async function POST(request: NextRequest) {
     const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
     
     if (authDeleteError) {
-      console.warn('Could not delete auth user:', authDeleteError);
+      logger.warn('Could not delete auth user', { error: authDeleteError.message, userId: user.id });
       // Continue anyway since main data is deleted
     }
 
+    logger.info('User account deleted successfully', { userId: user.id });
     return NextResponse.json({ 
       success: true, 
       message: deleteResult 
     });
 
   } catch (error) {
-    console.error('Account deletion error:', error);
+    logger.error('Account deletion error', error as Error);
     return NextResponse.json({ error: 'Internal server error', details: error }, { status: 500 });
   }
+  });
 }

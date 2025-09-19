@@ -2,6 +2,17 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { AuthUser, ChannelMember, ChannelRole, MessageSetter } from '@/types';
+import { 
+  checkAdminPrivileges, 
+  siteBanUser, 
+  siteUnbanUser, 
+  lookupUser, 
+  promoteUser, 
+  demoteUser,
+  getAdminStats,
+  getUserByUsername,
+  getAdminChannelId
+} from '@/lib/admin';
 
 interface CommandSuggestion {
   command: string;
@@ -293,6 +304,9 @@ export const useCommands = (
   };
 
   const handleCommand = async (command: string, args: string[]) => {
+    // Debug logging for commands (commented out)
+    // console.log('🎯 Command execution:', { command, args });
+
     const moderationCommands = ['ban', 'mod', 'unmod'];
     
     if (moderationCommands.includes(command)) {
@@ -768,12 +782,10 @@ export const useCommands = (
             );
           }
         } catch {
-          console.log('Join query failed, attempting direct column approach');
         }
 
         // Update members with this role back to default member role
         if (membersWithRole.length > 0) {
-          console.log('Found members with role, updating them:', membersWithRole.map(m => m.username));
           
           // Try the direct column approach if it exists
           try {
@@ -787,7 +799,6 @@ export const useCommands = (
               .eq('channel_role_id', roleToDelete.id);
 
             if (membersUpdateError) {
-              console.error('Direct column update failed:', membersUpdateError);
               // If direct approach fails, update each member individually
               for (const member of membersWithRole) {
                 await supabase
@@ -801,7 +812,6 @@ export const useCommands = (
               updateSuccessful = true;
             }
           } catch {
-            console.log('Direct column approach failed, updating members individually');
             // Update each member individually without using channel_role_id
             for (const member of membersWithRole) {
               await supabase
@@ -993,10 +1003,576 @@ export const useCommands = (
       return true;
     }
 
+    // Admin commands - only work in #admin channel
+    const adminChannelId = await getAdminChannelId();
+    if (currentChannel === adminChannelId) {
+      // Check if user is admin
+      const adminPrivileges = await checkAdminPrivileges(userId);
+      const isSiteOwner = adminPrivileges.is_super_admin;
+      const isAdmin = isSiteOwner || adminPrivileges.is_site_admin;
+      const isModerator = isAdmin || adminPrivileges.is_site_moderator;
+
+      // Site-wide ban command
+      if (command === 'siteban') {
+        if (!isModerator) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. You need site moderator or admin privileges.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUsername = args[0];
+        const reason = args.slice(1).join(' ') || 'No reason provided';
+
+        if (!targetUsername) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Usage: /siteban <username> [reason]',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        // Get target user ID
+        const { data: targetUser } = await supabase
+          .from('users')
+          .select('id, username')
+          .eq('username', targetUsername)
+          .single();
+
+        if (!targetUser) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `User '${targetUsername}' not found`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const result = await siteBanUser(targetUser.id, userId, reason);
+        
+        const msg = {
+          id: `admin_${Date.now()}`,
+          username: 'SYSTEM',
+          content: result.success 
+            ? `✅ User ${targetUsername} has been banned from the site. Reason: ${reason}`
+            : `❌ Failed to ban user: ${result.error}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Site-wide unban
+      if (command === 'siteunban') {
+        if (!isModerator) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. You need site moderator or admin privileges.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUsername = args[0];
+
+        if (!targetUsername) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Usage: /siteunban <username>',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        // Get target user ID
+        const { data: targetUser } = await supabase
+          .from('users')
+          .select('id, username')
+          .eq('username', targetUsername)
+          .single();
+
+        if (!targetUser) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `User '${targetUsername}' not found`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const result = await siteUnbanUser(targetUser.id, userId);
+        
+        const msg = {
+          id: `admin_${Date.now()}`,
+          username: 'SYSTEM',
+          content: result.success 
+            ? `✅ User ${targetUsername} has been unbanned`
+            : `❌ Failed to unban user: ${result.error}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Lookup user
+      if (command === 'lookup') {
+        if (!isModerator) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. You need site moderator or admin privileges.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUsername = args[0];
+
+        if (!targetUsername) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Usage: /lookup <username>',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const userData = await lookupUser(targetUsername);
+        
+        if (!userData) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `User '${targetUsername}' not found`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const { user, messageCount, recentMessageCount, channels, ban, reports } = userData;
+        
+        let content = `📊 User Lookup: ${user.username}\n`;
+        content += `Created: ${new Date(user.created_at).toLocaleDateString()}\n`;
+        content += `Channels: ${channels.join(', ') || 'None'}\n`;
+        content += `Messages: ${messageCount} total (${recentMessageCount} in last 24h)\n`;
+        
+        if (ban) {
+          content += `🚫 BANNED: ${ban.reason} (by ${ban.banned_by} on ${new Date(ban.banned_at).toLocaleDateString()})`;
+        }
+        
+        if (reports && reports.length > 0) {
+          content += `\n⚠️ Reports: ${reports.length} pending`;
+        }
+
+        const msg = {
+          id: `lookup_${Date.now()}`,
+          username: 'SYSTEM',
+          content,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Promote to site admin - Only Site Owner can do this
+      if (command === 'siteadmin') {
+        if (!isSiteOwner) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. Only the Site Owner can promote Site Admins.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUsername = args[0];
+
+        if (!targetUsername) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Usage: /siteadmin <username>',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        // Get target user ID
+        const { data: targetUser } = await supabase
+          .from('users')
+          .select('id, username')
+          .eq('username', targetUsername)
+          .single();
+
+        if (!targetUser) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `User '${targetUsername}' not found`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const result = await promoteUser(targetUser.id, 'admin', userId);
+        
+        const msg = {
+          id: `admin_${Date.now()}`,
+          username: 'SYSTEM',
+          content: result.success 
+            ? `✅ ${targetUsername} is now a site admin`
+            : `❌ Failed to promote user: ${result.error}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Promote to site moderator - Site Owner or Site Admin can do this
+      if (command === 'sitemoderator') {
+        if (!isAdmin) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. Only Site Owner or Site Admins can promote Site Moderators.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUsername = args[0];
+
+        if (!targetUsername) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Usage: /sitemoderator <username>',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        // Get target user ID
+        const { data: targetUser } = await supabase
+          .from('users')
+          .select('id, username')
+          .eq('username', targetUsername)
+          .single();
+
+        if (!targetUser) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `User '${targetUsername}' not found`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const result = await promoteUser(targetUser.id, 'moderator', userId);
+        
+        const msg = {
+          id: `admin_${Date.now()}`,
+          username: 'SYSTEM',
+          content: result.success 
+            ? `✅ ${targetUsername} is now a site moderator`
+            : `❌ Failed to promote user: ${result.error}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Get admin stats
+      if (command === 'stats') {
+        if (!isModerator) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. You need site moderator or admin privileges.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const stats = await getAdminStats();
+        
+        const msg = {
+          id: `stats_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `📊 Site Statistics:\n` +
+                  `Users: ${stats.totalUsers} (${stats.newUsersToday} new today)\n` +
+                  `Messages today: ${stats.messagesToday}\n` +
+                  `Channels: ${stats.totalChannels}\n` +
+                  `Active bans: ${stats.activeBans}\n` +
+                  `Pending reports: ${stats.pendingReports}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Reports command
+      if (command === 'reports') {
+        if (!isModerator) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. You need site moderator or admin privileges.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const { data: reports } = await supabase
+          .from('admin_reports')
+          .select(`
+            *,
+            reported_user:users!admin_reports_reported_user_id_fkey(username),
+            reporter:users!admin_reports_reported_by_id_fkey(username)
+          `)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (!reports || reports.length === 0) {
+          const msg = {
+            id: `reports_${Date.now()}`,
+            username: 'SYSTEM',
+            content: '✅ No pending reports',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, msg]);
+          return true;
+        }
+
+        let content = `⚠️ Pending Reports (${reports.length}):\n`;
+        reports.forEach((report: Record<string, unknown>, index: number) => {
+          const reportedUser = report.reported_user as { username?: string } | undefined;
+          const reporter = report.reporter as { username?: string } | undefined;
+          content += `${index + 1}. ${reportedUser?.username || 'Unknown'} - "${report.reason}" (by ${reporter?.username || 'Unknown'})\n`;
+        });
+
+        const msg = {
+          id: `reports_${Date.now()}`,
+          username: 'SYSTEM',
+          content,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Demote Site Admin - Only Site Owner can do this
+      if (command === 'demoteadmin') {
+        if (!isSiteOwner) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. Only the Site Owner can demote Site Admins.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUsername = args[0];
+
+        if (!targetUsername) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Usage: /demoteadmin <username>',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUser = await getUserByUsername(targetUsername);
+
+        if (!targetUser) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `User '${targetUsername}' not found`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        if (!targetUser.is_site_admin) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `${targetUsername} is not a Site Admin`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const result = await demoteUser(targetUser.id, 'admin', userId);
+        
+        const msg = {
+          id: `admin_${Date.now()}`,
+          username: 'SYSTEM',
+          content: result.success 
+            ? `✅ ${targetUsername} is no longer a Site Admin`
+            : `❌ Failed to demote user: ${result.error}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+
+      // Demote Site Moderator - Site Owner or Site Admin can do this
+      if (command === 'demotemoderator') {
+        if (!isAdmin) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Access denied. Only Site Owner or Site Admins can demote Site Moderators.',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUsername = args[0];
+
+        if (!targetUsername) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: 'Usage: /demotemoderator <username>',
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const targetUser = await getUserByUsername(targetUsername);
+
+        if (!targetUser) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `User '${targetUsername}' not found`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        if (!targetUser.is_site_moderator || targetUser.is_site_admin) {
+          const errorMsg = {
+            id: `error_${Date.now()}`,
+            username: 'SYSTEM',
+            content: `${targetUsername} is not a Site Moderator (or is a higher rank)`,
+            timestamp: new Date(),
+            channel: currentChannel
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          return true;
+        }
+
+        const result = await demoteUser(targetUser.id, 'moderator', userId);
+        
+        const msg = {
+          id: `admin_${Date.now()}`,
+          username: 'SYSTEM',
+          content: result.success 
+            ? `✅ ${targetUsername} is no longer a Site Moderator`
+            : `❌ Failed to demote user: ${result.error}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, msg]);
+        return true;
+      }
+    }
+
     return false;
   };
 
-  const getAvailableCommands = () => {
+  const getAvailableCommands = async () => {
+    // Check admin privileges first for use in filtering
+    let isSiteOwner = false;
+    let isAdmin = false;
+    let isModerator = false;
+    
+    // Check if we're in admin channel
+    const adminChannelId = await getAdminChannelId();
+    if (currentChannel === adminChannelId) {
+      const adminPrivileges = await checkAdminPrivileges(userId);
+      isSiteOwner = adminPrivileges.is_super_admin;
+      isAdmin = isSiteOwner || adminPrivileges.is_site_admin;
+      isModerator = isAdmin || adminPrivileges.is_site_moderator;
+    }
+
     const allCommands = [
       { command: 'help', description: 'Show available commands' },
       { command: 'info', description: 'Show channel information' },
@@ -1010,10 +1586,52 @@ export const useCommands = (
       { command: 'delete', description: 'Delete current channel (PERMANENT)', requiresRole: 'Owner' },
     ];
 
+    // Add admin commands if in admin channel
+    if (currentChannel === adminChannelId) {
+
+      if (isModerator) {
+        allCommands.push(
+          { command: 'siteban <user> [reason]', description: 'Ban user from entire site', requiresRole: 'SiteModerator' },
+          { command: 'siteunban <user>', description: 'Unban user from site', requiresRole: 'SiteModerator' },
+          { command: 'lookup <user>', description: 'Get detailed user information', requiresRole: 'SiteModerator' },
+          { command: 'stats', description: 'View site statistics', requiresRole: 'SiteModerator' },
+          { command: 'reports', description: 'View pending user reports', requiresRole: 'SiteModerator' }
+        );
+      }
+
+      if (isAdmin) {
+        allCommands.push(
+          { command: 'sitemoderator <user>', description: 'Promote user to Site Moderator', requiresRole: 'SiteAdmin' },
+          { command: 'demotemoderator <user>', description: 'Demote Site Moderator to regular user', requiresRole: 'SiteAdmin' }
+        );
+      }
+
+      if (isSiteOwner) {
+        allCommands.push(
+          { command: 'siteadmin <user>', description: 'Promote user to Site Admin', requiresRole: 'SiteOwner' },
+          { command: 'demoteadmin <user>', description: 'Demote Site Admin to regular user', requiresRole: 'SiteOwner' }
+        );
+      }
+    }
+
     return allCommands.filter(cmd => {
       if (!cmd.requiresRole && !cmd.requiresPermission) return true;
       
       if (cmd.requiresRole) {
+        // Admin channel role checks
+        if (currentChannel === adminChannelId) {
+          if (cmd.requiresRole === 'SiteOwner') {
+            return isSiteOwner;
+          }
+          if (cmd.requiresRole === 'SiteAdmin') {
+            return isAdmin;
+          }
+          if (cmd.requiresRole === 'SiteModerator') {
+            return isModerator;
+          }
+        }
+        
+        // Regular channel role checks
         if (cmd.requiresRole === 'Moderator+') {
           return userRole === 'owner' || userRole === 'moderator' || userRole === 'admin' || userRole === 'Owner' || userRole === 'Moderator' || userRole === 'Admin';
         }
@@ -1028,7 +1646,12 @@ export const useCommands = (
     });
   };
 
-  const updateCommandSuggestions = (input: string) => {
+  const updateCommandSuggestions = async (input: string) => {
+    // Debug logging (commented out to reduce noise)
+    // if (input.startsWith('/') && currentChannel === 'admin') {
+    //   console.log('🔍 Autocompletion debug:', { input, currentChannel, userId });
+    // }
+    
     // Handle @ mentions
     const atIndex = input.lastIndexOf('@');
     if (atIndex >= 0) {
@@ -1065,7 +1688,8 @@ export const useCommands = (
     const commandPart = input.slice(1);
     const parts = commandPart.split(' ');
     const command = parts[0].toLowerCase();
-    const availableCommands = getAvailableCommands();
+    const availableCommands = await getAvailableCommands();
+    
 
     if (command === 'createrole' && parts.length === 3) {
       const colorInput = parts[2].toLowerCase();
@@ -1141,10 +1765,12 @@ export const useCommands = (
       setSelectedSuggestion(0);
     } else {
       // Handle user autocomplete for commands that take usernames
-      const userCommands = ['ban', 'setrole', 'mod', 'unmod'];
+      const channelUserCommands = ['ban', 'setrole', 'mod', 'unmod'];
+      const adminUserCommands = ['siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'];
       
-      if (userCommands.includes(command) && parts.length === 2) {
-        // Show user suggestions for the first argument
+      // Channel-specific user commands
+      if (channelUserCommands.includes(command) && parts.length === 2) {
+        // Show user suggestions for the first argument from current channel
         const userInput = parts[1].toLowerCase();
         const userSuggestions = channelMembers
           .filter(member => member.username.toLowerCase().startsWith(userInput))
@@ -1165,17 +1791,64 @@ export const useCommands = (
           return;
         }
       }
+
+      // Admin user commands - fetch all users from database  
+      if (adminUserCommands.includes(command) && parts.length === 2) {
+        // Check if we're in admin channel
+        const adminChannelId = await getAdminChannelId();
+        if (currentChannel === adminChannelId) {
+        const userInput = parts[1].toLowerCase();
+        
+        // Fetch users from database for admin commands
+        try {
+          const { data: allUsers } = await supabase
+            .from('users')
+            .select('username, is_super_admin, is_site_admin, is_site_moderator')
+            .order('username');
+
+          if (allUsers) {
+            const userSuggestions = allUsers
+              .filter(user => user.username.toLowerCase().startsWith(userInput))
+              .map(user => {
+                let roleDisplay = 'User';
+                if (user.is_super_admin) roleDisplay = 'Site Owner';
+                else if (user.is_site_admin) roleDisplay = 'Site Admin';
+                else if (user.is_site_moderator) roleDisplay = 'Site Moderator';
+                
+                return {
+                  command: user.username,
+                  description: `${user.username} (${roleDisplay})`,
+                  isUser: true
+                };
+              });
+
+            if (userSuggestions.length > 0) {
+              setCommandSuggestions(userSuggestions);
+              setShowCommandSuggestions(true);
+              setSelectedSuggestion(0);
+              return;
+            }
+          }
+        } catch {
+        }
+        }
+      }
       
       // For commands with optional reason/additional args, show help but don't allow selection
-      if (['ban'].includes(command) && parts.length >= 3) {
+      const commandsWithReasons = ['ban', 'siteban'];
+      if (commandsWithReasons.includes(command) && parts.length >= 3) {
         const matchingCommand = availableCommands.find(cmd => 
           cmd.command.split(' ')[0].toLowerCase() === command
         );
         
         if (matchingCommand) {
+          const helpText = command === 'siteban' 
+            ? `${matchingCommand.description} - Type ban reason after username`
+            : `${matchingCommand.description} - Type reason after username`;
+            
           setCommandSuggestions([{
             command: '__help_only__', // Special marker to prevent selection
-            description: `${matchingCommand.description} - Type reason after username`
+            description: helpText
           }]);
           setShowCommandSuggestions(true);
           setSelectedSuggestion(0);

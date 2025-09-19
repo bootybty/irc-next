@@ -5,6 +5,7 @@ import { useTheme, themes } from '@/components/ThemeProvider';
 import { useNotification } from '@/contexts/NotificationContext';
 import type { ChannelCategory, ChannelRole } from '@/lib/supabase';
 import type { AuthUser, ChannelMember } from '@/types';
+import { checkAdminPrivileges } from '@/lib/admin';
 
 // Define universal channels outside component to prevent re-creation
 const UNIVERSAL_CHANNELS = ['global', 'general', 'random', 'tech', 'gaming', 'music', 'news', 'help', 'projects', 'feedback'];
@@ -127,6 +128,10 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     }
     setIsInitialLoading(true);
     
+    // Check if user has admin privileges to see admin channel
+    const adminPrivileges = await checkAdminPrivileges(userId);
+    const canSeeAdminChannel = adminPrivileges.is_super_admin || adminPrivileges.is_site_admin || adminPrivileges.is_site_moderator;
+    
     // Batch multiple queries together to reduce API calls
     const [categoriesResult, uncategorizedResult, universalChannelsResult, membershipsResult, mentionsResult, subscriptionsResult] = await Promise.all([
       // Categories with channels
@@ -147,12 +152,13 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         `)
         .order('name'),
       
-      // Uncategorized channels
+      // Uncategorized channels (exclude admin unless user has privileges)
       supabase
         .from('channels')
         .select('id, name, topic, category_id')
         .is('category_id', null)
-        .not('name', 'in', `(${UNIVERSAL_CHANNELS.map(ch => `"${ch}"`).join(',')})`),
+        .not('name', 'in', `(${UNIVERSAL_CHANNELS.map(ch => `"${ch}"`).join(',')})`)
+        .not('name', 'eq', canSeeAdminChannel ? 'never_match_anything' : 'admin'),
       
       // Universal channels
       supabase
@@ -213,14 +219,33 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       });
     }
     
-    if (uncategorizedData.length > 0) {
+    // Separate admin channel into its own category if present
+    const adminChannel = uncategorizedData.find(ch => ch.name === 'admin');
+    const nonAdminUncategorized = uncategorizedData.filter(ch => ch.name !== 'admin');
+    
+    if (adminChannel) {
+      processedCategories.unshift({
+        id: 'admin-category',
+        name: 'ADMINISTRATION',
+        emoji: '🔐',
+        color: '#dc2626',
+        sort_order: -2,
+        channels: [{
+          ...adminChannel,
+          created_at: new Date().toISOString()
+        }],
+        created_at: new Date().toISOString()
+      });
+    }
+    
+    if (nonAdminUncategorized.length > 0) {
       processedCategories.push({
         id: 'no-category',
         name: 'NO CATEGORY',
         emoji: '📁',
         color: '#6b7280',
         sort_order: 1000,
-        channels: uncategorizedData.sort((a, b) => a.name.localeCompare(b.name)).map(ch => ({
+        channels: nonAdminUncategorized.sort((a, b) => a.name.localeCompare(b.name)).map(ch => ({
           ...ch,
           created_at: new Date().toISOString()
         })),
@@ -289,6 +314,11 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       return;
     }
     setIsInitialLoading(true);
+    
+    // Check if user has admin privileges to see admin channel
+    const adminPrivileges = await checkAdminPrivileges(userId);
+    const canSeeAdminChannel = adminPrivileges.is_super_admin || adminPrivileges.is_site_admin || adminPrivileges.is_site_moderator;
+    
     const [categoriesResult, uncategorizedResult, universalChannelsResult] = await Promise.all([
       supabase
         .from('channel_categories')
@@ -311,7 +341,8 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
         .from('channels')
         .select('id, name, topic, category_id')
         .is('category_id', null)
-        .not('name', 'in', `(${UNIVERSAL_CHANNELS.map(ch => `"${ch}"`).join(',')})`),
+        .not('name', 'in', `(${UNIVERSAL_CHANNELS.map(ch => `"${ch}"`).join(',')})`)
+        .not('name', 'eq', canSeeAdminChannel ? 'never_match_anything' : 'admin'),
       
       supabase
         .from('channels')
@@ -365,20 +396,42 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     })));
     
     if (uncategorizedChannels && uncategorizedChannels.length > 0) {
-      const sortedUncategorized = uncategorizedChannels
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(ch => ({ ...ch, created_at: new Date().toISOString() }));
-        
-      const uncategorizedCategory: ChannelCategory = {
-        id: 'no-category',
-        name: '',
-        emoji: '',
-        color: '',
-        sort_order: 0,
-        channels: sortedUncategorized,
-        created_at: new Date().toISOString()
-      };
-      categories.push(uncategorizedCategory);
+      // Separate admin channel into its own category if present
+      const adminChannel = uncategorizedChannels.find(ch => ch.name === 'admin');
+      const nonAdminUncategorized = uncategorizedChannels.filter(ch => ch.name !== 'admin');
+      
+      if (adminChannel) {
+        const adminCategory: ChannelCategory = {
+          id: 'admin-category',
+          name: 'ADMINISTRATION',
+          emoji: '🔐',
+          color: '#dc2626',
+          sort_order: -2,
+          channels: [{
+            ...adminChannel,
+            created_at: new Date().toISOString()
+          }],
+          created_at: new Date().toISOString()
+        };
+        categories.unshift(adminCategory);
+      }
+      
+      if (nonAdminUncategorized.length > 0) {
+        const sortedUncategorized = nonAdminUncategorized
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(ch => ({ ...ch, created_at: new Date().toISOString() }));
+          
+        const uncategorizedCategory: ChannelCategory = {
+          id: 'no-category',
+          name: '',
+          emoji: '',
+          color: '',
+          sort_order: 0,
+          channels: sortedUncategorized,
+          created_at: new Date().toISOString()
+        };
+        categories.push(uncategorizedCategory);
+      }
     }
 
     setCategories(categories);
@@ -649,6 +702,17 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       if (channel) {
         channelName = channel.name;
         break;
+      }
+    }
+    
+    // Security check: prevent access to admin channel for non-admin users
+    if (channelName === 'admin') {
+      const adminPrivileges = await checkAdminPrivileges(userId);
+      const canAccessAdmin = adminPrivileges.is_super_admin || adminPrivileges.is_site_admin || adminPrivileges.is_site_moderator;
+      
+      if (!canAccessAdmin) {
+        console.warn('Access denied: User lacks admin privileges for #admin channel');
+        return { success: false, error: 'Access denied to admin channel' };
       }
     }
     

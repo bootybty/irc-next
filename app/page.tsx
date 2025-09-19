@@ -221,8 +221,8 @@ function HomeContent() {
             ui.setInputMessage(ui.inputMessage + selectedCommand.command);
           }
         }
-        // Handle user/role suggestions for user commands
-        else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole'].includes(currentCommand) && parts.length >= 2) {
+        // Handle user/role suggestions for user commands (including admin commands)
+        else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
           // Replace the current incomplete argument with the selected suggestion
           const newParts = [...parts];
           newParts[parts.length - 1] = selectedCommand.command;
@@ -242,7 +242,16 @@ function HomeContent() {
       return;
     }
 
-    if (!commands.showCommandSuggestions) return;
+    console.log('🎹 Keyboard event:', {
+      key: e.key,
+      showCommandSuggestions: commands.showCommandSuggestions,
+      commandSuggestionsLength: commands.commandSuggestions.length
+    });
+
+    if (!commands.showCommandSuggestions) {
+      console.log('⚠️ Keyboard handler blocked: showCommandSuggestions is false');
+      return;
+    }
 
     switch (e.key) {
       case 'ArrowDown':
@@ -281,6 +290,13 @@ function HomeContent() {
         if (commands.commandSuggestions[commands.selectedSuggestion]) {
           const selectedCommand = commands.commandSuggestions[commands.selectedSuggestion];
           
+          // Debug logging for keyboard handler
+          console.log('⌨️ Keyboard handler debug:', {
+            key: e.key,
+            selectedCommand,
+            inputMessage: ui.inputMessage
+          });
+          
           // Don't handle selection for help-only suggestions
           if (selectedCommand.command === '__help_only__') {
             if (e.key === 'Tab') {
@@ -310,6 +326,13 @@ function HomeContent() {
           const parts = ui.inputMessage.split(' ');
           const currentCommand = parts[0]?.slice(1); // Remove the "/"
           
+          console.log('⌨️ Parts analysis:', {
+            parts,
+            currentCommand,
+            partsLength: parts.length,
+            isUser: selectedCommand.isUser
+          });
+          
           // Handle color suggestions for /createrole
           if (ui.inputMessage.includes('/createrole ') && !selectedCommand.command.includes(' ')) {
             if (parts.length === 3) {
@@ -319,16 +342,21 @@ function HomeContent() {
               ui.setInputMessage(ui.inputMessage + selectedCommand.command);
             }
           }
-          // Handle user/role suggestions for user commands
-          else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole'].includes(currentCommand) && parts.length >= 2) {
+          // Handle user/role suggestions for user commands (including admin commands)
+          else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
+            console.log('✅ Keyboard: Handling user suggestion for command:', currentCommand);
             // Replace the current incomplete argument with the selected suggestion
             const newParts = [...parts];
             newParts[parts.length - 1] = selectedCommand.command;
-            ui.setInputMessage(newParts.join(' ') + ' ');
+            const newMessage = newParts.join(' ') + ' ';
+            console.log('✅ Keyboard: Setting new message:', newMessage);
+            ui.setInputMessage(newMessage);
           }
           // Handle regular command suggestions
           else {
+            console.log('⚠️ Keyboard: Falling back to regular command handling');
             const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
+            console.log('⚠️ Keyboard: Setting command:', commandWithSlash + ' ');
             ui.setInputMessage(commandWithSlash + ' ');
           }
           
@@ -346,6 +374,13 @@ function HomeContent() {
 
   const selectSuggestion = (index: number) => {
     const selectedCommand = commands.commandSuggestions[index];
+    
+    // Debug logging
+    console.log('🔧 selectSuggestion debug:', {
+      selectedCommand,
+      inputMessage: ui.inputMessage,
+      index
+    });
     
     // Don't handle selection for help-only suggestions
     if (selectedCommand.command === '__help_only__') {
@@ -369,6 +404,13 @@ function HomeContent() {
     const parts = ui.inputMessage.split(' ');
     const currentCommand = parts[0]?.slice(1); // Remove the "/"
     
+    console.log('🔧 Parts analysis:', {
+      parts,
+      currentCommand,
+      partsLength: parts.length,
+      isUser: selectedCommand.isUser
+    });
+    
     // Handle color suggestions for /createrole
     if (ui.inputMessage.includes('/createrole ') && !selectedCommand.command.includes(' ')) {
       if (parts.length === 3) {
@@ -378,25 +420,48 @@ function HomeContent() {
         ui.setInputMessage(ui.inputMessage + selectedCommand.command);
       }
     }
-    // Handle user/role suggestions for user commands
-    else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole'].includes(currentCommand) && parts.length >= 2) {
+    // Handle user/role suggestions for user commands (including admin commands)
+    else if (selectedCommand.isUser && ['ban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
+      console.log('✅ Handling user suggestion for command:', currentCommand);
       // Replace the current incomplete argument with the selected suggestion
+      const newParts = [...parts];
+      newParts[parts.length - 1] = selectedCommand.command;
+      const newMessage = newParts.join(' ') + ' ';
+      console.log('✅ Setting new message:', newMessage);
+      ui.setInputMessage(newMessage);
+    }
+    // Handle role suggestions
+    else if (selectedCommand.isRole && ['setrole', 'deleterole'].includes(currentCommand) && parts.length >= 2) {
       const newParts = [...parts];
       newParts[parts.length - 1] = selectedCommand.command;
       ui.setInputMessage(newParts.join(' ') + ' ');
     }
     // Handle regular command suggestions
     else {
+      console.log('⚠️ Falling back to regular command handling');
       const commandWithSlash = `/${selectedCommand.command.split(' ')[0]}`;
+      console.log('⚠️ Setting command:', commandWithSlash + ' ');
       ui.setInputMessage(commandWithSlash + ' ');
     }
     
     commands.setShowCommandSuggestions(false);
   };
 
-  const handleInputChange = (value: string) => {
+  const handleInputChange = async (value: string) => {
+    // Debug logging
+    if (value.startsWith('/')) {
+      console.log('🔍 Input change debug:', {
+        value,
+        authUser: auth.authUser ? 'exists' : 'null',
+        showCommandSuggestions: commands.showCommandSuggestions,
+        currentChannel: channel.currentChannel,
+        userId: auth.userId,
+        username: auth.username
+      });
+    }
+    
     ui.handleInputChange(value);
-    commands.updateCommandSuggestions(value);
+    await commands.updateCommandSuggestions(value);
   };
 
   const handleCreationSuccess = async (channelId?: string) => {

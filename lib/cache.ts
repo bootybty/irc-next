@@ -100,12 +100,12 @@ class SmartCache {
   /**
    * Smart cache invalidation based on events
    */
-  invalidate(event: string, context?: Record<string, unknown>): void {
+  invalidate(event: string): void {
     if (!this.storage) return;
 
     this.invalidationRules.forEach(rule => {
       if (rule.invalidateOn.includes(event)) {
-        this.deleteByPattern(rule.pattern, context);
+        this.deleteByPattern(rule.pattern);
       }
     });
   }
@@ -113,7 +113,7 @@ class SmartCache {
   /**
    * Delete cache entries matching pattern
    */
-  private deleteByPattern(pattern: string, context?: Record<string, unknown>): void {
+  private deleteByPattern(pattern: string): void {
     if (!this.storage) return;
 
     const keys = Object.keys(this.storage)

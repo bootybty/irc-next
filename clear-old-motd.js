@@ -1,5 +1,5 @@
 // Script to clear old MOTD mock data
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://pigrdhzlhvvigkbjlmfi.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpZ3JkaHpsaHZ2aWdrYmpsbWZpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNDg5NjA3MSwiZXhwIjoyMDUwNDcyMDcxfQ.f6aCYVpXTZWPr4D2J8l1vJAOQQIIaJBb5a_YYpWWUPI';

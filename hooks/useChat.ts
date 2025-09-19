@@ -153,12 +153,12 @@ export const useChat = (
         // No more messages
         setHasMoreMessages(false);
       }
-    } catch (error) {
+    } catch {
       // Error loading more messages
     }
     
     setIsLoadingMore(false);
-  }, [messages, isLoadingMore, hasMoreMessages, currentChannel]);
+  }, [messages, isLoadingMore, hasMoreMessages]);
 
   const checkScrollPosition = useCallback(() => {
     const chatArea = document.querySelector('.chat-area');

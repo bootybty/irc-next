@@ -767,7 +767,7 @@ export const useCommands = (
               member.channel_role && member.channel_role.id === roleToDelete.id
             );
           }
-        } catch (joinError) {
+        } catch {
           console.log('Join query failed, attempting direct column approach');
         }
 
@@ -800,7 +800,7 @@ export const useCommands = (
             } else {
               updateSuccessful = true;
             }
-          } catch (directError) {
+          } catch {
             console.log('Direct column approach failed, updating members individually');
             // Update each member individually without using channel_role_id
             for (const member of membersWithRole) {

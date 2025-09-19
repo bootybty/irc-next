@@ -175,7 +175,7 @@ export default function CreateChannelModal({
       }
 
       // Add creator as Owner in channel_members (check if already exists first)
-      const { data: existingMember, error: memberCheckError } = await supabase
+      const { data: existingMember } = await supabase
         .from('channel_members')
         .select('id')
         .eq('channel_id', channelId)

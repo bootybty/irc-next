@@ -93,7 +93,7 @@ export default function PrivacyCenter({ onClose }: PrivacyCenterProps) {
         result = await response.json();
       } catch (jsonError) {
         console.error('Failed to parse JSON response:', jsonError);
-        const text = await response.text();
+        await response.text();
         alert('ERROR: Invalid response from server. Please contact support via GitHub.');
         return;
       }

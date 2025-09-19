@@ -42,7 +42,7 @@ export default function TestSidePage() {
             {Object.keys(themes).map((themeName) => (
               <button
                 key={themeName}
-                onClick={() => setTheme(themeName as any)}
+                onClick={() => setTheme(themeName as 'classic' | 'dark-white' | 'light')}
                 className={`px-4 py-2 border rounded ${
                   theme === themeName 
                     ? `${currentTheme.highlight} border-current` 

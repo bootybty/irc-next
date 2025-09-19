@@ -121,7 +121,7 @@ class SmartCache {
       .map(key => key.substring(this.prefix.length));
 
     keys.forEach(key => {
-      if (this.matchesPattern(key, pattern, context)) {
+      if (this.matchesPattern(key, pattern)) {
         this.delete(key);
       }
     });
@@ -130,7 +130,7 @@ class SmartCache {
   /**
    * Check if key matches pattern with context
    */
-  private matchesPattern(key: string, pattern: string, _context?: Record<string, unknown>): boolean {
+  private matchesPattern(key: string, pattern: string): boolean {
     if (pattern.includes('*')) {
       const regexPattern = pattern.replace(/\*/g, '.*');
       const regex = new RegExp(`^${regexPattern}$`);

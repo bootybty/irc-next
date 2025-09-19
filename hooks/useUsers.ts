@@ -29,7 +29,17 @@ export const useUsers = (
   const [displayedUserCount, setDisplayedUserCount] = useState(75);
   const getRoleColor = useCallback((member: ChannelMember) => {
     if (member.channel_role) {
-      return member.channel_role.color;
+      // Map custom role colors to theme properties
+      const colorMap: {[key: string]: string} = {
+        'text-blue-500': currentTheme.roleBlue,
+        'text-purple-500': currentTheme.rolePurple,
+        'text-teal-500': currentTheme.roleTeal,
+        'text-emerald-500': currentTheme.roleGreen,
+        'text-pink-500': currentTheme.rolePink,
+        'text-indigo-500': currentTheme.roleIndigo,
+        'text-orange-500': currentTheme.roleOrange,
+      };
+      return colorMap[member.channel_role.color] || member.channel_role.color;
     }
     switch (member.role) {
       case 'owner': return currentTheme.roleOwner;
@@ -37,7 +47,7 @@ export const useUsers = (
       case 'admin': return currentTheme.roleModerator; 
       default: return currentTheme.roleDefault;
     }
-  }, [currentTheme.roleOwner, currentTheme.roleModerator, currentTheme.roleDefault]);
+  }, [currentTheme.roleOwner, currentTheme.roleModerator, currentTheme.roleDefault, currentTheme.roleBlue, currentTheme.rolePurple, currentTheme.roleTeal, currentTheme.roleGreen, currentTheme.rolePink, currentTheme.roleIndigo, currentTheme.roleOrange]);
 
   const getUserListColor = useCallback((member: ChannelMember, isCurrentlyPresent: boolean) => {
     // If member is not currently present in the channel, show gray with opacity
@@ -106,7 +116,7 @@ export const useUsers = (
       // 3. Within same role and status, sort alphabetically
       return a.username.localeCompare(b.username);
     });
-  }, [users, channelMembers, getUserListColor, currentTheme.muted]);
+  }, [users, channelMembers, getUserListColor]);
 
   const displayUsers = useMemo(() => {
     return allUsers.slice(0, displayedUserCount);

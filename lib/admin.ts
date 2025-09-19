@@ -125,15 +125,28 @@ export async function siteBanUser(
       return { success: false, error: banError.message };
     }
 
-    // Remove user from all channels
-    const { error: removeError } = await supabase
-      .from('channel_members')
-      .delete()
-      .eq('user_id', userId);
+    // Don't remove user from channels - they can still view but not send messages
+    
+    // Get banner's username for the broadcast
+    const { data: banner } = await supabase
+      .from('users')
+      .select('username')
+      .eq('id', bannedBy)
+      .single();
 
-    if (removeError) {
-      console.error('Failed to remove user from channels:', removeError);
-    }
+    // Send realtime broadcast to all channels to notify the banned user
+    const channels = supabase.getChannels();
+    channels.forEach(channel => {
+      channel.send({
+        type: 'broadcast',
+        event: 'user_site_banned',
+        payload: {
+          bannedUserId: userId,
+          bannedBy: banner?.username || 'Admin',
+          reason: reason
+        }
+      });
+    });
 
     // Log the action
     await logAdminAction(bannedBy, 'site_ban', userId, undefined, reason);
@@ -162,6 +175,26 @@ export async function siteUnbanUser(
     if (error) {
       return { success: false, error: error.message };
     }
+
+    // Get unbanner's username for the broadcast
+    const { data: unbanner } = await supabase
+      .from('users')
+      .select('username')
+      .eq('id', unbannedBy)
+      .single();
+
+    // Send realtime broadcast to all channels to notify the unbanned user
+    const channels = supabase.getChannels();
+    channels.forEach(channel => {
+      channel.send({
+        type: 'broadcast',
+        event: 'user_site_unbanned',
+        payload: {
+          unbannedUserId: userId,
+          unbannedBy: unbanner?.username || 'Admin'
+        }
+      });
+    });
 
     // Log the action
     await logAdminAction(unbannedBy, 'site_unban', userId);

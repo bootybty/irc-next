@@ -74,7 +74,7 @@ async function makeSuperAdmin() {
       throw new Error(`Failed to update user: ${error}`);
     }
 
-    const updatedUser = await updateResponse.json();
+    await updateResponse.json();
     
     console.log(`\n🎉 Success! ${username} is now a site admin`);
     console.log(`\n📋 Updated status:`);

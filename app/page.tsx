@@ -89,10 +89,10 @@ function HomeContent() {
     // Clear messages first
     chat.clearMessages();
     
-    // Switch channel
+    // Switch channel - banned users can now view channels
     await channel.switchChannel(channelId);
     
-    // Always load messages regardless of switch result
+    // Only load messages and join if switch was successful
     await chat.loadChannelMessages(channelId);
     
     // Then join realtime channel
@@ -222,7 +222,7 @@ function HomeContent() {
           }
         }
         // Handle user/role suggestions for user commands (including admin commands)
-        else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
+        else if (['ban', 'unban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
           // Replace the current incomplete argument with the selected suggestion
           const newParts = [...parts];
           newParts[parts.length - 1] = selectedCommand.command;
@@ -343,7 +343,7 @@ function HomeContent() {
             }
           }
           // Handle user/role suggestions for user commands (including admin commands)
-          else if (['ban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
+          else if (['ban', 'unban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
             console.log('✅ Keyboard: Handling user suggestion for command:', currentCommand);
             // Replace the current incomplete argument with the selected suggestion
             const newParts = [...parts];
@@ -421,7 +421,7 @@ function HomeContent() {
       }
     }
     // Handle user/role suggestions for user commands (including admin commands)
-    else if (selectedCommand.isUser && ['ban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
+    else if (selectedCommand.isUser && ['ban', 'unban', 'setrole', 'mod', 'unmod', 'deleterole', 'siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'].includes(currentCommand) && parts.length >= 2) {
       console.log('✅ Handling user suggestion for command:', currentCommand);
       // Replace the current incomplete argument with the selected suggestion
       const newParts = [...parts];
@@ -998,15 +998,19 @@ function HomeContent() {
                     e.target.style.height = Math.min(e.target.scrollHeight, 72) + 'px'; // max 4.5rem = 72px
                   }}
                   onKeyDown={handleKeyDown}
-                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-y-auto ${!channel.isUserSubscribed(channel.currentChannel) ? 'opacity-50' : ''}`}
+                  className={`flex-1 ${currentTheme.input} outline-none ml-2 resize-none overflow-y-auto ${!channel.isUserSubscribed(channel.currentChannel) || chat.isBanned.banned || chat.isSiteBanned.banned ? 'opacity-50' : ''}`}
                   placeholder={
                     !channel.isUserSubscribed(channel.currentChannel) 
                       ? "JOIN CHANNEL TO SEND MESSAGES..." 
-                      : channel.userRole === 'owner' || channel.userRole === 'moderator' 
-                        ? "TYPE MESSAGE OR COMMAND (/help for commands)..." 
-                        : "TYPE MESSAGE..."
+                      : chat.isSiteBanned.banned
+                        ? `You are banned from the entire site. Reason: ${chat.isSiteBanned.reason || 'No reason provided'}`
+                        : chat.isBanned.banned
+                          ? `You are banned from this channel. Reason: ${chat.isBanned.reason || 'No reason provided'}`
+                          : channel.userRole === 'owner' || channel.userRole === 'moderator' 
+                            ? "TYPE MESSAGE OR COMMAND (/help for commands)..." 
+                            : "TYPE MESSAGE..."
                   }
-                  disabled={!channel.isUserSubscribed(channel.currentChannel)}
+                  disabled={!channel.isUserSubscribed(channel.currentChannel) || chat.isBanned.banned || chat.isSiteBanned.banned}
                   rows={1}
                   style={{
                     minHeight: '1.5rem',

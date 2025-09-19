@@ -51,6 +51,7 @@ export const useCommands = (
   const [commandSuggestions, setCommandSuggestions] = useState<CommandSuggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const [pendingDeleteChannel, setPendingDeleteChannel] = useState<PendingDelete | null>(null);
+  const [cachedBannedUsers, setCachedBannedUsers] = useState<{channelId: string, users: {user_id: string, users: {username: string} | {username: string}[]}[]} | null>(null);
 
   const handleModerationCommand = async (command: string, args: string[]) => {
     if (!authUser || !userId) return false;
@@ -87,7 +88,33 @@ export const useCommands = (
     }
 
     const targetMember = channelMembers.find(m => m.username.toLowerCase() === targetUsername.toLowerCase());
-    if (!targetMember) {
+    
+    // For unban command, look up banned users if not found in channel members
+    let targetUserId = targetMember?.user_id;
+    if (!targetMember && command === 'unban') {
+      // Look up user by username first, then check if they're banned
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('username', targetUsername)
+        .single();
+      
+      if (userProfile) {
+        // Check if this user is actually banned in this channel
+        const { data: banRecord } = await supabase
+          .from('channel_bans')
+          .select('user_id')
+          .eq('channel_id', currentChannel)
+          .eq('user_id', userProfile.id)
+          .maybeSingle();
+        
+        if (banRecord) {
+          targetUserId = userProfile.id;
+        }
+      }
+    }
+    
+    if (!targetMember && command !== 'unban') {
       const errorMsg = {
         id: `error_${Date.now()}`,
         username: 'SYSTEM',
@@ -98,8 +125,20 @@ export const useCommands = (
       setMessages(prev => [...prev, errorMsg]);
       return true;
     }
+    
+    if (!targetUserId) {
+      const errorMsg = {
+        id: `error_${Date.now()}`,
+        username: 'SYSTEM',
+        content: `User '${targetUsername}' not found${command === 'unban' ? ' in banned users list' : ' in channel'}`,
+        timestamp: new Date(),
+        channel: currentChannel
+      };
+      setMessages(prev => [...prev, errorMsg]);
+      return true;
+    }
 
-    if (targetMember.role === 'owner' && userRole !== 'owner') {
+    if (targetMember?.role === 'owner' && userRole !== 'owner') {
       const errorMsg = {
         id: `error_${Date.now()}`,
         username: 'SYSTEM',
@@ -125,7 +164,7 @@ export const useCommands = (
               },
               body: JSON.stringify({
                 channelId: currentChannel,
-                targetUserId: targetMember.user_id,
+                targetUserId: targetUserId,
                 bannedBy: userId,
                 reason: reason,
                 targetUsername: targetUsername,
@@ -140,8 +179,35 @@ export const useCommands = (
 
             await response.json();
 
-            // Refresh channel members to remove banned user from UI
-            fetchChannelMembers(currentChannel);
+            // Show success message to admin
+            const successMsg = {
+              id: `ban_success_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `Successfully banned ${targetUsername}. Reason: ${reason}`,
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, successMsg]);
+
+            // Send kick notification to banned user
+            if (channel) {
+              await channel.send({
+                type: 'broadcast',
+                event: 'user_banned',
+                payload: { 
+                  bannedUserId: targetUserId,
+                  bannedUsername: targetUsername,
+                  reason: reason,
+                  bannedBy: username,
+                  channelId: currentChannel
+                }
+              });
+            }
+
+            // Note: Banned users remain in channel members list
+            
+            // Invalidate banned users cache since list changed
+            setCachedBannedUsers(null);
             
           } catch (error) {
             // console.error('Ban API error:', error);
@@ -169,20 +235,35 @@ export const useCommands = (
             return true;
           }
 
-          await supabase
-            .from('channel_members')
-            .update({ role: 'moderator' })
-            .eq('channel_id', currentChannel)
-            .eq('user_id', targetMember.user_id);
+          try {
+            const { error } = await supabase
+              .from('channel_members')
+              .update({ role: 'moderator' })
+              .eq('channel_id', currentChannel)
+              .eq('user_id', targetUserId);
 
-          const modMsg = {
-            id: `mod_${Date.now()}`,
-            username: 'SYSTEM',
-            content: `${targetUsername} was promoted to moderator by ${username}`,
-            timestamp: new Date(),
-            channel: currentChannel
-          };
-          setMessages(prev => [...prev, modMsg]);
+            if (error) {
+              throw new Error(error.message);
+            }
+
+            const modMsg = {
+              id: `mod_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `${targetUsername} was promoted to moderator by ${username}`,
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, modMsg]);
+          } catch (error) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `Failed to promote ${targetUsername}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+          }
           break;
 
         case 'unmod':
@@ -198,20 +279,84 @@ export const useCommands = (
             return true;
           }
 
-          await supabase
-            .from('channel_members')
-            .update({ role: 'member' })
-            .eq('channel_id', currentChannel)
-            .eq('user_id', targetMember.user_id);
+          try {
+            const { error } = await supabase
+              .from('channel_members')
+              .update({ role: 'member' })
+              .eq('channel_id', currentChannel)
+              .eq('user_id', targetUserId);
 
-          const unmodMsg = {
-            id: `unmod_${Date.now()}`,
-            username: 'SYSTEM',
-            content: `${targetUsername} was demoted to member by ${username}`,
-            timestamp: new Date(),
-            channel: currentChannel
-          };
-          setMessages(prev => [...prev, unmodMsg]);
+            if (error) {
+              throw new Error(error.message);
+            }
+
+            const unmodMsg = {
+              id: `unmod_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `${targetUsername} was demoted to member by ${username}`,
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, unmodMsg]);
+          } catch (error) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `Failed to demote ${targetUsername}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+          }
+          break;
+
+        case 'unban':
+          try {
+            const { error } = await supabase
+              .from('channel_bans')
+              .delete()
+              .eq('channel_id', currentChannel)
+              .eq('user_id', targetUserId);
+
+            if (error) {
+              throw new Error(error.message);
+            }
+
+            const unbanMsg = {
+              id: `unban_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `${targetUsername} was unbanned by ${username}`,
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, unbanMsg]);
+
+            // Send unban notification via realtime
+            if (channel) {
+              await channel.send({
+                type: 'broadcast',
+                event: 'user_unbanned',
+                payload: { 
+                  unbannedUserId: targetUserId,
+                  unbannedUsername: targetUsername,
+                  unbannedBy: username,
+                  channelId: currentChannel
+                }
+              });
+            }
+            
+            // Invalidate banned users cache since list changed
+            setCachedBannedUsers(null);
+          } catch (error) {
+            const errorMsg = {
+              id: `error_${Date.now()}`,
+              username: 'SYSTEM',
+              content: `Failed to unban ${targetUsername}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+              channel: currentChannel
+            };
+            setMessages(prev => [...prev, errorMsg]);
+          }
           break;
       }
 
@@ -307,7 +452,7 @@ export const useCommands = (
     // Debug logging for commands (commented out)
     // console.log('🎯 Command execution:', { command, args });
 
-    const moderationCommands = ['ban', 'mod', 'unmod'];
+    const moderationCommands = ['ban', 'unban', 'mod', 'unmod'];
     
     if (moderationCommands.includes(command)) {
       return await handleModerationCommand(command, args);
@@ -317,7 +462,7 @@ export const useCommands = (
       const helpMsg = {
         id: `help_${Date.now()}`,
         username: 'SYSTEM',
-        content: 'Available commands: /ban <user> [reason], /mod <user>, /unmod <user>, /topic <message>, /motd <message>, /delete, /info, /roles, /setrole, /createrole, /deleterole',
+        content: 'Available commands: /ban <user> [reason], /unban <user>, /mod <user>, /unmod <user>, /topic <message>, /motd <message>, /delete, /info, /roles, /setrole, /createrole, /deleterole',
         timestamp: new Date(),
         channel: currentChannel
       };
@@ -1580,6 +1725,7 @@ export const useCommands = (
       { command: 'motd <message>', description: 'Set channel Message of the Day', requiresRole: 'Owner' },
       { command: 'roles', description: 'List all channel roles', requiresRole: 'Owner' },
       { command: 'ban <user> [reason]', description: 'Ban user from channel', requiresPermission: 'can_ban' },
+      { command: 'unban <user>', description: 'Unban user from channel', requiresPermission: 'can_ban' },
       { command: 'setrole <user> <role>', description: 'Assign role to user', requiresPermission: 'can_manage_roles' },
       { command: 'createrole <name> [color]', description: 'Create new custom role', requiresRole: 'Owner' },
       { command: 'deleterole <name>', description: 'Delete custom role', requiresRole: 'Owner' },
@@ -1765,24 +1911,71 @@ export const useCommands = (
       setSelectedSuggestion(0);
     } else {
       // Handle user autocomplete for commands that take usernames
-      const channelUserCommands = ['ban', 'setrole', 'mod', 'unmod'];
+      const channelUserCommands = ['ban', 'unban', 'setrole', 'mod', 'unmod'];
       const adminUserCommands = ['siteban', 'siteunban', 'lookup', 'siteadmin', 'sitemoderator', 'demoteadmin', 'demotemoderator'];
       
       // Channel-specific user commands
       if (channelUserCommands.includes(command) && parts.length === 2) {
-        // Show user suggestions for the first argument from current channel
         const userInput = parts[1].toLowerCase();
-        const userSuggestions = channelMembers
-          .filter(member => member.username.toLowerCase().startsWith(userInput))
-          .map(member => {
-            // Get the correct role color and display name
-            const displayRole = member.role || 'member';
-            return {
-              command: member.username,
-              description: `${member.username} (${displayRole})`,
-              isUser: true
+        let userSuggestions: CommandSuggestion[] = [];
+        
+        // For unban command, show banned users instead of channel members
+        if (command === 'unban') {
+          try {
+            // Use cached banned users if available for this channel
+            let bannedUsers = null;
+            
+            if (cachedBannedUsers?.channelId === currentChannel) {
+              bannedUsers = cachedBannedUsers.users;
+            } else {
+              // Fetch and cache banned users for this channel
+              const { data: fetchedBannedUsers } = await supabase
+                .from('channel_bans')
+                .select('user_id, users!channel_bans_user_id_fkey(username)')
+                .eq('channel_id', currentChannel);
+              
+              bannedUsers = fetchedBannedUsers || [];
+              
+              // Cache the result
+              setCachedBannedUsers({
+                channelId: currentChannel,
+                users: bannedUsers
+              });
+            }
+            
+            if (bannedUsers) {
+              userSuggestions = bannedUsers
+                .filter(ban => {
+                  const user = Array.isArray(ban.users) ? ban.users[0] : ban.users;
+                  return user?.username?.toLowerCase().startsWith(userInput);
+                })
+                .map(ban => {
+                  const user = Array.isArray(ban.users) ? ban.users[0] : ban.users;
+                  return {
+                    command: user.username,
+                    description: `${user.username} (banned)`,
+                    isUser: true
+                  };
+                });
+            }
+          } catch {
+            // If fetch fails, allow manual typing
+            userSuggestions = [];
+          }
+        } else {
+          // Show user suggestions for the first argument from current channel
+          userSuggestions = channelMembers
+            .filter(member => member.username.toLowerCase().startsWith(userInput))
+            .map(member => {
+              // Get the correct role color and display name
+              const displayRole = member.role || 'member';
+              return {
+                command: member.username,
+                description: `${member.username} (${displayRole})`,
+                isUser: true
             };
           });
+        }
         
         if (userSuggestions.length > 0) {
           setCommandSuggestions(userSuggestions);

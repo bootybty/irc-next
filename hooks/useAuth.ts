@@ -19,6 +19,20 @@ export const useAuth = () => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Check for pending notifications from login/logout
+        const loginNotification = sessionStorage.getItem('loginNotification');
+        const logoutNotification = sessionStorage.getItem('logoutNotification');
+        
+        if (loginNotification) {
+          sessionStorage.removeItem('loginNotification');
+          setTimeout(() => showNotification(loginNotification), 500);
+        }
+        
+        if (logoutNotification) {
+          sessionStorage.removeItem('logoutNotification');
+          setTimeout(() => showNotification(logoutNotification), 500);
+        }
+        
         // Check if this is an email confirmation callback
         const hashFragment = window.location.hash;
         if (hashFragment && (hashFragment.includes('access_token') || hashFragment.includes('type=signup'))) {
@@ -81,15 +95,18 @@ export const useAuth = () => {
         setUsername('');
         setUserId('');
         
-        // Show logout notification
-        showNotification('SUCCESSFULLY LOGGED OUT');
+        // Store logout notification in sessionStorage to show after refresh
+        sessionStorage.setItem('logoutNotification', 'SUCCESSFULLY LOGGED OUT');
+        
+        // Immediate refresh to clear permissions and admin channels
+        window.location.reload();
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [showNotification]);
 
   const handleAuthSuccess = (user: { id: string; username: string }) => {
     setAuthUser(user);
@@ -97,16 +114,24 @@ export const useAuth = () => {
     setUserId(user.id);
     setShowAuthModal(false);
     
-    // Show login success notification
-    showNotification(`SUCCESSFULLY LOGGED IN AS ${user.username.toUpperCase()}`);
+    // Store login notification in sessionStorage to show after refresh
+    sessionStorage.setItem('loginNotification', `SUCCESSFULLY LOGGED IN AS ${user.username.toUpperCase()}`);
+    
+    // Immediate refresh to ensure permissions and channels are updated
+    window.location.reload();
   };
 
   const handleLogout = async () => {
+    // Store logout notification in sessionStorage to show after refresh
+    sessionStorage.setItem('logoutNotification', 'SUCCESSFULLY LOGGED OUT');
+    
     await supabase.auth.signOut();
     setAuthUser(null);
     setUsername('');
     setUserId('');
-    // Don't show auth modal automatically - let user stay on page
+    
+    // Immediate refresh to clear permissions and admin channels
+    window.location.reload();
   };
 
   return {

@@ -2,7 +2,7 @@
 import { randomUUID } from 'crypto';
 
 const globalChannelId = 'ebc700eb-2039-4b49-812e-f50d48c358b1';
-const supabaseUrl = 'https://pigrdhzlhvvigkbjlmfi.supabase.co';
+// const supabaseUrl = 'https://pigrdhzlhvvigkbjlmfi.supabase.co';
 const managementToken = 'sbp_d95a6f741a6498cb0e21abac5e8d5b8035c5e6fa';
 
 

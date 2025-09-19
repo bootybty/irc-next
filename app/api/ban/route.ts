@@ -31,16 +31,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: banError.message }, { status: 400 });
     }
 
-    // Remove from channel members
-    const { error: deleteError } = await supabaseAdmin
-      .from('channel_members')
-      .delete()
-      .eq('channel_id', channelId)
-      .eq('user_id', targetUserId);
-
-    if (deleteError) {
-      // console.error('Member delete error:', deleteError);
-    }
+    // Note: Banned users remain in channel_members so they can still read messages
+    // They just cannot send messages (enforced in frontend)
 
     // Send ban message to channel
     const { error: messageError } = await supabaseAdmin

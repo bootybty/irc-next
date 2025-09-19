@@ -441,25 +441,10 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       fetchUnreadCounts();
     }
     
-    // Only set default channel if no URL hash and no current channel
-    const urlChannelName = window.location.hash.slice(1) || '';
-    if (!currentChannel && categories.length > 0 && !Array.from(searchParams.keys())[0] && !urlChannelName) {
-      let globalChannel = null;
-      for (const category of categories) {
-        if (category.channels && category.channels.length > 0) {
-          globalChannel = category.channels.find(ch => ch.name === 'global');
-          if (globalChannel) break;
-        }
-      }
-      
-      if (globalChannel) {
-        switchChannel(globalChannel.id);
-      }
-    }
-    
     setExpandedCategories(new Set());
     setIsInitialLoading(false);
-  }, [fetchUnreadMentions, fetchUnreadCounts, userId, currentChannel, searchParams, isInitialLoading]);
+  }, [fetchUnreadMentions, fetchUnreadCounts, userId, isInitialLoading]);
+
 
   const refreshChannels = useCallback(async () => {
     const now = Date.now();
@@ -484,7 +469,7 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       console.error('❌ Failed to refresh channels:', error);
       setIsRefreshing(false);
     }
-  }, [lastRefresh, fetchCategoriesAndChannels]);
+  }, [lastRefresh, fetchCategoriesAndChannels, fetchUserSubscriptions]);
 
   const fetchChannelMembers = useCallback(async (channelId: string) => {
     const { data: roles } = await supabase
@@ -559,6 +544,9 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     if (!authUser || !userId) return { success: false, error: 'Not authenticated' };
 
     try {
+      // Note: Removed ban check from channel subscription
+      // Banned users can join and view channels, but cannot send messages
+
       const { data: existingMember } = await supabase
         .from('channel_members')
         .select('id, is_subscribed')
@@ -716,6 +704,10 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       }
     }
     
+    // Note: Removed ban check from channel switching
+    // Banned users can view channels and read messages, but cannot send messages
+    // Message sending ban check is handled in useChat.ts
+    
     if (updateUrl) {
       const newUrl = channelName !== 'unknown-channel' ? `/#${channelName}` : '/';
       window.history.replaceState({}, '', newUrl);
@@ -785,7 +777,25 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       setCurrentChannel(channelId);
       return { success: false, error };
     }
-  }, [categories, markMentionsAsRead, clearUnreadCount, authUser, fetchChannelMembers, joinChannelAsMember]);
+  }, [categories, markMentionsAsRead, clearUnreadCount, authUser, fetchChannelMembers, joinChannelAsMember, userId]);
+
+  // Handle default channel switching after switchChannel is defined
+  useEffect(() => {
+    const urlChannelName = window.location.hash.slice(1) || '';
+    if (!currentChannel && categories.length > 0 && !Array.from(searchParams.keys())[0] && !urlChannelName) {
+      let globalChannel = null;
+      for (const category of categories) {
+        if (category.channels && category.channels.length > 0) {
+          globalChannel = category.channels.find(ch => ch.name === 'global');
+          if (globalChannel) break;
+        }
+      }
+      
+      if (globalChannel) {
+        switchChannel(globalChannel.id);
+      }
+    }
+  }, [categories, currentChannel, searchParams, switchChannel]);
 
   const toggleCategory = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories);

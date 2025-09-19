@@ -23,6 +23,8 @@ export const useChat = (
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [loadedChannels, setLoadedChannels] = useState<Set<string>>(new Set());
+  const [isBanned, setIsBanned] = useState<{banned: boolean, reason?: string}>({banned: false});
+  const [isSiteBanned, setIsSiteBanned] = useState<{banned: boolean, reason?: string}>({banned: false});
 
   // Smart scroll behavior functions
   const scrollToBottom = useCallback((force = false) => {
@@ -272,6 +274,51 @@ export const useChat = (
       fetchChannelMembers(channelId);
     });
 
+    newChannel.on('broadcast', { event: 'user_banned' }, (payload) => {
+      const banData = payload.payload;
+      
+      // If current user is the one being banned, show notification but don't kick them
+      if (banData.bannedUserId === userId) {
+        const banMsg = {
+          id: `ban_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `You have been banned from this channel by ${banData.bannedBy}. Reason: ${banData.reason}`,
+          timestamp: new Date(),
+          channel: channelId
+        };
+        setMessages(prev => [...prev, banMsg]);
+        
+        // Update cached ban status immediately (no database query needed!)
+        setIsBanned({
+          banned: true,
+          reason: banData.reason
+        });
+      }
+      
+      // No need to fetch channel members since banned users remain in channel
+    });
+
+    newChannel.on('broadcast', { event: 'user_unbanned' }, (payload) => {
+      const unbanData = payload.payload;
+      
+      // If current user is the one being unbanned, update cache and show notification
+      if (unbanData.unbannedUserId === userId) {
+        const unbanMsg = {
+          id: `unban_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `You have been unbanned from this channel by ${unbanData.unbannedBy}`,
+          timestamp: new Date(),
+          channel: channelId
+        };
+        setMessages(prev => [...prev, unbanMsg]);
+        
+        // Update cached ban status immediately (no database query needed!)
+        setIsBanned({
+          banned: false
+        });
+      }
+    });
+
     newChannel.on('broadcast', { event: 'motd_update' }, (payload) => {
       setCurrentMotd(payload.payload.motd.toUpperCase());
       
@@ -283,6 +330,49 @@ export const useChat = (
         channel: channelId
       };
       setMessages(prev => [...prev, motdMsg]);
+    });
+
+    newChannel.on('broadcast', { event: 'user_site_banned' }, (payload) => {
+      const siteBanData = payload.payload;
+      
+      // If current user is the one being site banned, update cache and show notification
+      if (siteBanData.bannedUserId === userId) {
+        const siteBanMsg = {
+          id: `siteban_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `You have been banned from the entire site by ${siteBanData.bannedBy}. Reason: ${siteBanData.reason}`,
+          timestamp: new Date(),
+          channel: channelId
+        };
+        setMessages(prev => [...prev, siteBanMsg]);
+        
+        // Update cached site ban status immediately
+        setIsSiteBanned({
+          banned: true,
+          reason: siteBanData.reason
+        });
+      }
+    });
+
+    newChannel.on('broadcast', { event: 'user_site_unbanned' }, (payload) => {
+      const unbanData = payload.payload;
+      
+      // If current user is the one being unbanned, update cache and show notification
+      if (unbanData.unbannedUserId === userId) {
+        const unbanMsg = {
+          id: `siteunban_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `You have been unbanned from the site by ${unbanData.unbannedBy}`,
+          timestamp: new Date(),
+          channel: channelId
+        };
+        setMessages(prev => [...prev, unbanMsg]);
+        
+        // Update cached site ban status immediately
+        setIsSiteBanned({
+          banned: false
+        });
+      }
     });
 
     newChannel.on('broadcast', { event: 'typing' }, () => {
@@ -354,6 +444,32 @@ export const useChat = (
         if (handled) {
           return true;
         }
+      }
+
+      // Check if user is site banned (global mute)
+      if (isSiteBanned.banned) {
+        const siteBanMsg = {
+          id: `siteban_error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `You are banned from the entire site and cannot send messages anywhere. Reason: ${isSiteBanned.reason || 'No reason provided'}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, siteBanMsg]);
+        return true; // Message handled (blocked)
+      }
+
+      // Check if user is banned using cached status (no database query!)
+      if (isBanned.banned) {
+        const banMsg = {
+          id: `ban_error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: `You are banned from this channel and cannot send messages. Reason: ${isBanned.reason || 'No reason provided'}`,
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, banMsg]);
+        return true; // Message handled (blocked)
       }
 
       const message = {
@@ -441,6 +557,64 @@ export const useChat = (
     // Keep loadedChannels - don't reset so we don't auto-scroll when switching back
   };
 
+  const checkBanStatus = useCallback(async () => {
+    if (!userId || !currentChannel) {
+      setIsBanned({banned: false});
+      return;
+    }
+
+    try {
+      const { data: banData } = await supabase
+        .from('channel_bans')
+        .select('reason')
+        .eq('channel_id', currentChannel)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      setIsBanned({
+        banned: !!banData,
+        reason: banData?.reason
+      });
+    } catch (error) {
+      console.error('Error checking ban status:', error);
+      setIsBanned({banned: false});
+    }
+  }, [userId, currentChannel]);
+
+  const checkSiteBanStatus = useCallback(async () => {
+    if (!userId) {
+      setIsSiteBanned({banned: false});
+      return;
+    }
+
+    try {
+      const { data: siteBanData } = await supabase
+        .from('site_bans')
+        .select('reason')
+        .eq('user_id', userId)
+        .is('unbanned_at', null)
+        .maybeSingle();
+
+      setIsSiteBanned({
+        banned: !!siteBanData,
+        reason: siteBanData?.reason
+      });
+    } catch (error) {
+      console.error('Error checking site ban status:', error);
+      setIsSiteBanned({banned: false});
+    }
+  }, [userId]);
+
+  // Check ban status when channel changes
+  useEffect(() => {
+    checkBanStatus();
+  }, [checkBanStatus]);
+
+  // Check site ban status when user changes
+  useEffect(() => {
+    checkSiteBanStatus();
+  }, [checkSiteBanStatus]);
+
   // Cleanup BroadcastChannel on unmount
   useEffect(() => {
     return () => {
@@ -470,6 +644,8 @@ export const useChat = (
     clearMessages,
     scrollToBottom,
     scrollToBottomWhenReady,
-    checkScrollPosition
+    checkScrollPosition,
+    isBanned,
+    isSiteBanned
   };
 };

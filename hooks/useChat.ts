@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { Message, User, AuthUser, ChannelMember } from '@/types';
@@ -26,18 +26,29 @@ export const useChat = (
   const [isBanned, setIsBanned] = useState<{banned: boolean, reason?: string}>({banned: false});
   const [isSiteBanned, setIsSiteBanned] = useState<{banned: boolean, reason?: string}>({banned: false});
 
-  // Smart scroll behavior functions
+  // Cache chat area element reference for performance
+  const chatAreaRef = useRef<HTMLElement | null>(null);
+  
+  // Get chat area element with caching
+  const getChatArea = useCallback(() => {
+    if (!chatAreaRef.current) {
+      chatAreaRef.current = document.querySelector('.chat-area');
+    }
+    return chatAreaRef.current;
+  }, []);
+
+  // Smart scroll behavior functions - optimized with cached element
   const scrollToBottom = useCallback((force = false) => {
-    const chatArea = document.querySelector('.chat-area');
+    const chatArea = getChatArea();
     if (chatArea && (force || isAtBottom)) {
       chatArea.scrollTop = chatArea.scrollHeight;
       setHasNewMessages(false);
     }
-  }, [isAtBottom]);
+  }, [isAtBottom, getChatArea]);
 
-  // Wait for DOM to be ready and then scroll
+  // Wait for DOM to be ready and then scroll - optimized with cached element
   const scrollToBottomWhenReady = useCallback((force = false) => {
-    const chatArea = document.querySelector('.chat-area');
+    const chatArea = getChatArea();
     if (!chatArea) return;
 
     const initialHeight = chatArea.scrollHeight;
@@ -60,7 +71,7 @@ export const useChat = (
     
     // Start checking after one frame
     requestAnimationFrame(checkAndScroll);
-  }, [isAtBottom]);
+  }, [isAtBottom, getChatArea]);
 
   const loadMoreMessages = useCallback(async (channelId: string) => {
     // Simple guards
@@ -80,8 +91,8 @@ export const useChat = (
     // Use created_at if available, otherwise convert timestamp
     const oldestTimestamp = oldestMessage.created_at || oldestMessage.timestamp.toISOString();
     
-    // Store scroll position for later adjustment
-    const chatArea = document.querySelector('.chat-area');
+    // Store scroll position for later adjustment - using cached element
+    const chatArea = getChatArea();
     const oldScrollHeight = chatArea?.scrollHeight || 0;
     const oldScrollTop = chatArea?.scrollTop || 0;
     
@@ -160,10 +171,11 @@ export const useChat = (
     }
     
     setIsLoadingMore(false);
-  }, [messages, isLoadingMore, hasMoreMessages]);
+  }, [messages, isLoadingMore, hasMoreMessages, getChatArea]);
 
+  // Throttled scroll position checker (max 60fps for smooth performance)
   const checkScrollPosition = useCallback(() => {
-    const chatArea = document.querySelector('.chat-area');
+    const chatArea = getChatArea();
     if (!chatArea) return;
 
     const scrollTop = chatArea.scrollTop;
@@ -176,7 +188,15 @@ export const useChat = (
     if (isAtBottom) {
       setHasNewMessages(false);
     }
-  }, []);
+  }, [getChatArea]);
+
+  // Throttled version for smooth scrolling (16ms = 60fps)
+  const throttledCheckScrollPosition = useCallback(() => {
+    const now = Date.now();
+    if (now - (throttledCheckScrollPosition as any).lastCall < 16) return;
+    (throttledCheckScrollPosition as any).lastCall = now;
+    checkScrollPosition();
+  }, [checkScrollPosition]);
 
 
 
@@ -251,8 +271,8 @@ export const useChat = (
           processedMessageIds.add(payload.payload.id);
           setMessages(prev => [...prev, payload.payload]);
           
-          // Check if user is at bottom right now (not from state)
-          const chatArea = document.querySelector('.chat-area');
+          // Check if user is at bottom right now (not from state) - using cached element
+          const chatArea = getChatArea();
           const isCurrentlyAtBottom = chatArea ? 
             chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 50 : true;
           
@@ -310,8 +330,8 @@ export const useChat = (
             return [...prev, message];
           });
           
-          // Check if user is at bottom right now (not from state)
-          const chatArea = document.querySelector('.chat-area');
+          // Check if user is at bottom right now (not from state) - using cached element
+          const chatArea = getChatArea();
           const isCurrentlyAtBottom = chatArea ? 
             chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 50 : true;
           
@@ -663,6 +683,21 @@ export const useChat = (
     }
   }, [loadedChannels, scrollToBottomWhenReady]);
 
+  // Memoized sorted messages for performance (only recalculate when messages change)
+  const sortedMessages = useMemo(() => {
+    return [...messages, ...localMessages].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  }, [messages, localMessages]);
+
+  // Memoized messages with formatted timestamps for performance
+  const messagesWithFormattedTime = useMemo(() => {
+    return sortedMessages.map(message => ({
+      ...message,
+      formattedTime: new Date(message.timestamp).toLocaleTimeString('en-US', { hour12: false })
+    }));
+  }, [sortedMessages]);
+
   const clearMessages = () => {
     setMessages([]);
     setUsers([]);
@@ -672,6 +707,8 @@ export const useChat = (
     setIsLoadingMore(false);
     setHasMoreMessages(true);
     // Keep loadedChannels - don't reset so we don't auto-scroll when switching back
+    // Clear cached chat area reference when clearing messages
+    chatAreaRef.current = null;
   };
 
   const checkBanStatus = useCallback(async () => {
@@ -761,8 +798,11 @@ export const useChat = (
     clearMessages,
     scrollToBottom,
     scrollToBottomWhenReady,
-    checkScrollPosition,
+    checkScrollPosition: throttledCheckScrollPosition,
     isBanned,
-    isSiteBanned
+    isSiteBanned,
+    // Optimized data for rendering
+    sortedMessages,
+    messagesWithFormattedTime
   };
 };

@@ -972,22 +972,19 @@ function HomeContent() {
                 </div>
               )}
               
-              {[...chat.messages, ...chat.localMessages].sort((a, b) => 
-                new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-              ).map(message => {
-                const time = new Date(message.timestamp).toLocaleTimeString('en-US', { hour12: false });
+              {chat.messagesWithFormattedTime.map(message => {
                 const userColor = users.getUserRoleColor(message.username);
                 return (
                   <div key={message.id} className={`message-item ${currentTheme.text} break-words`}>
-                    <span className="hidden sm:inline">{time} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {formatMessageContent(message.content)}
+                    <span className="hidden sm:inline">{message.formattedTime} </span>&lt;<span className={userColor}>{message.username.toUpperCase()}</span>&gt; {formatMessageContent(message.content)}
                   </div>
                 );
               })}
             </div>
             
-            {/* New Messages Indicator */}
+            {/* New Messages Indicator - Optimized positioning */}
             {chat.hasNewMessages && !chat.isAtBottom && (
-              <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-10">
+              <div className="fixed bottom-20 left-1/2 z-10" style={{ transform: 'translateX(-50%)', willChange: 'transform' }}>
                 <button 
                   onClick={() => chat.scrollToBottom(true)}
                   className={`${currentTheme.accent} ${currentTheme.button} px-4 py-2 rounded shadow-lg animate-pulse`}

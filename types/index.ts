@@ -10,6 +10,7 @@ export interface Message {
   timestamp: Date;
   channel: string;
   created_at?: string;  // ISO string from database for queries
+  isTemp?: boolean;     // Temporary message while waiting for database insert
 }
 
 export interface User {

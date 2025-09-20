@@ -241,10 +241,14 @@ export const useChat = (
     const channelName = `channel:${channelId}`;
     const newChannel = supabase.channel(channelName);
 
+    // Track messages we've already added to prevent duplicates
+    const processedMessageIds = new Set<string>();
+
     newChannel.on('broadcast', { event: 'message' }, (payload) => {
       if (payload.payload.username !== username) {
         // Only update messages if this tab is viewing the channel
         if (payload.payload.channel === currentChannel) {
+          processedMessageIds.add(payload.payload.id);
           setMessages(prev => [...prev, payload.payload]);
           
           // Check if user is at bottom right now (not from state)
@@ -269,6 +273,65 @@ export const useChat = (
         }
       }
     });
+
+    // CRITICAL: Subscribe to database changes for real-time message sync
+    // This ensures messages appear even if broadcast is missed
+    newChannel.on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `channel_id=eq.${channelId}`
+      },
+      (payload) => {
+        const newMessage = payload.new;
+        
+        // Skip processing our own messages (they're already displayed)
+        if (newMessage.user_id === userId) {
+          return;
+        }
+        
+        // Only process if we haven't seen this message via broadcast
+        if (!processedMessageIds.has(newMessage.id)) {
+          const message = {
+            id: newMessage.id,
+            username: newMessage.username,
+            content: newMessage.content,
+            timestamp: new Date(newMessage.created_at),
+            channel: channelId,
+            created_at: newMessage.created_at
+          };
+          
+          setMessages(prev => {
+            // Double-check for duplicates in current state
+            const exists = prev.some(m => m.id === message.id);
+            if (exists) return prev;
+            return [...prev, message];
+          });
+          
+          // Check if user is at bottom right now (not from state)
+          const chatArea = document.querySelector('.chat-area');
+          const isCurrentlyAtBottom = chatArea ? 
+            chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 50 : true;
+          
+          if (!isCurrentlyAtBottom) {
+            setHasNewMessages(true);
+          } else {
+            // Auto-scroll if user is currently at bottom
+            scrollToBottomWhenReady();
+          }
+          
+          // Broadcast to other tabs
+          if (broadcastChannel) {
+            broadcastChannel.postMessage({
+              type: 'message',
+              payload: message
+            });
+          }
+        }
+      }
+    );
 
     newChannel.on('broadcast', { event: 'moderation' }, () => {
       fetchChannelMembers(channelId);
@@ -485,12 +548,15 @@ export const useChat = (
         return true; // Message handled (blocked)
       }
 
+      // Create temporary message with a unique temporary ID
+      const tempId = `temp_${Date.now()}_${Math.random()}`;
       const message = {
-        id: `msg_${Date.now()}`,
+        id: tempId,
         username: username,
         content: trimmedInput,
         timestamp: new Date(),
-        channel: currentChannel
+        channel: currentChannel,
+        isTemp: true  // Mark as temporary
       };
 
       setMessages(prev => [...prev, message]);
@@ -498,13 +564,8 @@ export const useChat = (
       // Wait for DOM to update and then scroll
       scrollToBottomWhenReady(true);
 
-      await channel.send({
-        type: 'broadcast',
-        event: 'message',
-        payload: message
-      });
-
-      const { data: insertedMessage } = await supabase
+      // Insert into database first to get the real ID
+      const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
           channel_id: currentChannel,
@@ -516,7 +577,42 @@ export const useChat = (
         .select()
         .single();
 
+      if (insertError) {
+        // Remove temporary message on error
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        const errorMsg = {
+          id: `error_${Date.now()}`,
+          username: 'SYSTEM',
+          content: 'ERROR: Failed to send message',
+          timestamp: new Date(),
+          channel: currentChannel
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        return false;
+      }
+
+      // Update the temporary message with the real ID
       if (insertedMessage) {
+        setMessages(prev => prev.map(m => 
+          m.id === tempId 
+            ? { ...m, id: insertedMessage.id, isTemp: false }
+            : m
+        ));
+
+        // Send broadcast with real message ID
+        await channel.send({
+          type: 'broadcast',
+          event: 'message',
+          payload: {
+            id: insertedMessage.id,
+            username: username,
+            content: trimmedInput,
+            timestamp: new Date(insertedMessage.created_at),
+            channel: currentChannel,
+            created_at: insertedMessage.created_at
+          }
+        });
+
         await detectAndStoreMentions(trimmedInput, insertedMessage.id);
       }
 

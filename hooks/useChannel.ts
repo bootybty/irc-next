@@ -948,17 +948,11 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     }
   }, [userId, fetchUnreadMentions, fetchUnreadCounts]);
 
-  // Periodically fetch mentions to catch new ones (every 30 seconds)
-  // This replaces the realtime subscription to save connections
-  useEffect(() => {
-    if (!userId) return;
-    
-    const interval = setInterval(() => {
-      fetchUnreadMentions();
-    }, 30000); // 30 seconds
-    
-    return () => clearInterval(interval);
-  }, [userId, fetchUnreadMentions]);
+  // NO POLLING: Mentions are only updated on:
+  // 1. Page load/refresh
+  // 2. Channel switch
+  // 3. Manual refresh button click
+  // This saves bandwidth and API calls
 
   return {
     currentChannel,

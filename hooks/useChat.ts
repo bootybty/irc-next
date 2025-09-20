@@ -330,14 +330,8 @@ export const useChat = (
             });
           }
           
-          // Check if this message mentions the current user
-          // If so, trigger a mentions fetch to update the UI
-          if (message.content.includes(`@${username}`)) {
-            // Small delay to ensure the mention is processed in the database
-            setTimeout(() => {
-              fetchChannelMembers(channelId);
-            }, 500);
-          }
+          // NO AUTO-FETCH: Mentions are only updated on manual actions
+          // to save bandwidth and API calls
         }
       }
     );

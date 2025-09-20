@@ -722,6 +722,10 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     await markMentionsAsRead(channelId);
     clearUnreadCount(channelId);
     
+    // Fetch updated mention counts when switching channels
+    // This replaces the realtime subscription to save connections
+    await fetchUnreadMentions();
+    
     try {
       const [channelResult] = await Promise.all([
         supabase
@@ -933,33 +937,8 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [categories, currentChannel, switchChannel]);
 
-  useEffect(() => {
-    if (!userId) return;
-    
-    const mentionChannel = supabase
-      .channel('mentions')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'mentions',
-          filter: `mentioned_user_id=eq.${userId}`
-        },
-        (payload) => {
-          const mention = payload.new;
-          setUnreadMentions(prev => ({
-            ...prev,
-            [mention.channel_id]: (prev[mention.channel_id] || 0) + 1
-          }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(mentionChannel);
-    };
-  }, [userId]);
+  // REMOVED: Realtime mentions subscription to save connections
+  // Mentions are now fetched on channel switch and periodically
 
   // Fetch mentions and unread counts when userId becomes available
   useEffect(() => {
@@ -968,6 +947,18 @@ export const useChannel = (userId: string, username: string, authUser: AuthUser 
       fetchUnreadCounts();
     }
   }, [userId, fetchUnreadMentions, fetchUnreadCounts]);
+
+  // Periodically fetch mentions to catch new ones (every 30 seconds)
+  // This replaces the realtime subscription to save connections
+  useEffect(() => {
+    if (!userId) return;
+    
+    const interval = setInterval(() => {
+      fetchUnreadMentions();
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [userId, fetchUnreadMentions]);
 
   return {
     currentChannel,

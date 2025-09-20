@@ -284,7 +284,7 @@ export const useChat = (
         table: 'messages',
         filter: `channel_id=eq.${channelId}`
       },
-      (payload) => {
+      async (payload) => {
         const newMessage = payload.new;
         
         // Skip processing our own messages (they're already displayed)
@@ -328,6 +328,15 @@ export const useChat = (
               type: 'message',
               payload: message
             });
+          }
+          
+          // Check if this message mentions the current user
+          // If so, trigger a mentions fetch to update the UI
+          if (message.content.includes(`@${username}`)) {
+            // Small delay to ensure the mention is processed in the database
+            setTimeout(() => {
+              fetchChannelMembers(channelId);
+            }, 500);
           }
         }
       }
